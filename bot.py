@@ -819,34 +819,34 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             audio_path
         ], check=True, capture_output=True)
 
-        # Transcribe with faster-whisper
-        from faster_whisper import WhisperModel
+        # Transcribe with whisper
+        import whisper
         # Use better model for Hindi/Hinglish, tiny is enough for English
         if language == "hi" or language is None:
             model_name = "small"
         else:
             model_name = "tiny"
         bot.edit_message_text(f"🧠 Whisper ({model_name} model) se speech-to-text ho raha hai...\n⏳ 1-4 min lag sakte hain", chat_id, status_msg.message_id)
-        model = WhisperModel(model_name, device="cpu", compute_type="int8")
+        model = whisper.load_model(model_name)
         transcribe_kwargs = {
+            "fp16": False,
             "beam_size": 5,
+            "best_of": 5,
             "temperature": 0,
             "condition_on_previous_text": False,
             "task": "transcribe",
         }
         if language:
             transcribe_kwargs["language"] = language
-        segments_gen, _ = model.transcribe(audio_path, **transcribe_kwargs)
-        # Convert to dict format used by rest of the code
-        raw_segments = [{"start": s.start, "end": s.end, "text": s.text} for s in segments_gen]
+        result = model.transcribe(audio_path, **transcribe_kwargs)
 
-        if not raw_segments:
+        if not result.get("segments"):
             bot.edit_message_text("❌ Video mein koi speech nahi mili.", chat_id, status_msg.message_id)
             return
 
         # Gemini correction step (Hindi/Hinglish ke liye especially useful)
         bot.edit_message_text("✨ Gemini se text correct ho raha hai...", chat_id, status_msg.message_id)
-        corrected_segments = gemini_correct_segments(raw_segments, lang_label)
+        corrected_segments = gemini_correct_segments(result["segments"], lang_label)
 
         # Generate ASS (with fade in/out animation)
         ass_content = generate_ass(corrected_segments)
