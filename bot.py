@@ -682,7 +682,54 @@ pending_videos = {}  # key -> {file_id, file_name, chat_id, message_id}
 SUBTITLE_LANGUAGES = {
     "en":       ("🇬🇧 English", "en"),
     "hi":       ("🇮🇳 Hindi", "hi"),
-    "hinglish": ("🔀 Hinglish", None),  # None = whisper auto-detect
+    "hinglish": ("🔀 Hinglish", None),
+}
+
+pending_style_choices = {}  # vid_key -> {lang_label, whisper_lang, user_id}
+
+STYLE_PRESETS = {
+    "netflix": {
+        "font": "Noto Sans Devanagari", "size": 20, "bold": 1,
+        "color": "&H00FFFFFF", "outline_color": "&H00000000",
+        "outline": 2, "shadow": 0, "alignment": 2,
+        "marginv": 30, "fade": 200, "spacing": 0,
+        "label": "🎬 Netflix"
+    },
+    "shorts": {
+        "font": "Noto Sans Devanagari", "size": 26, "bold": 1,
+        "color": "&H00FFFFFF", "outline_color": "&H00000000",
+        "outline": 2, "shadow": 0, "alignment": 5,
+        "marginv": 0, "fade": 100, "spacing": 0,
+        "label": "📱 Shorts", "word_highlight": True, "max_words": 3
+    },
+    "reels": {
+        "font": "Noto Sans Devanagari", "size": 24, "bold": 1,
+        "color": "&H0000FFFF", "outline_color": "&H00000000",
+        "outline": 2, "shadow": 0, "alignment": 5,
+        "marginv": 0, "fade": 150, "spacing": 0,
+        "label": "🎥 Reels", "max_words": 4
+    },
+    "gaming": {
+        "font": "Noto Sans Devanagari", "size": 28, "bold": 1,
+        "color": "&H0000FF00", "outline_color": "&H00FF0000",
+        "outline": 3, "shadow": 1, "alignment": 5,
+        "marginv": 0, "fade": 50, "spacing": 1,
+        "label": "🎮 Gaming"
+    },
+    "cinematic": {
+        "font": "Noto Sans Devanagari", "size": 18, "bold": 0,
+        "color": "&H00FFFFFF", "outline_color": "&H00000000",
+        "outline": 1, "shadow": 1, "alignment": 2,
+        "marginv": 40, "fade": 400, "spacing": 2,
+        "label": "✨ Cinematic"
+    },
+}
+
+TRANSLATE_MODES = {
+    "original": "📝 Original",
+    "hindi":    "🇮🇳 Hindi",
+    "english":  "🇬🇧 English",
+    "bilingual": "🔀 Bilingual",
 }
 
 def seconds_to_srt_time(seconds):
@@ -733,6 +780,105 @@ def generate_ass(segments, font_name="Noto Sans Devanagari"):
         # \fad(fadein_ms, fadeout_ms) — 200ms fade in + 200ms fade out
         dialogues.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{{\\fad(200,200)}}{text}")
     return header + "\n".join(dialogues)
+
+def auto_line_break(text, max_words=4):
+    words = text.strip().split()
+    if len(words) <= max_words:
+        return text
+    lines = []
+    for i in range(0, len(words), max_words):
+        lines.append(" ".join(words[i:i+max_words]))
+    return "\\N".join(lines)
+
+def generate_ass_styled(segments, style_key="netflix", words_data=None):
+    p = STYLE_PRESETS.get(style_key, STYLE_PRESETS["netflix"])
+    header = (
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: 384\nPlayResY: 288\nWrapStyle: 0\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: Default,{p['font']},{p['size']},{p['color']},&H000000FF,{p['outline_color']},&H64000000,{p['bold']},0,0,0,100,100,{p['spacing']},0,1,{p['outline']},{p['shadow']},{p['alignment']},10,10,{p['marginv']},1\n"
+        "Style: Highlight,{font},{size},&H0000FFFF,&H000000FF,{oc},&H64000000,1,0,0,0,100,100,{sp},0,1,{ol},{sh},{al},10,10,{mv},1\n\n"
+        "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    ).format(
+        font=p['font'], size=p['size']+4, oc=p['outline_color'],
+        sp=p['spacing'], ol=p['outline'], sh=p['shadow'],
+        al=p['alignment'], mv=p['marginv']
+    )
+    fade = p.get('fade', 200)
+    max_words = p.get('max_words', 0)
+    use_word_highlight = p.get('word_highlight', False)
+    dialogues = []
+
+    for seg in segments:
+        start = seconds_to_ass_time(seg['start'])
+        end = seconds_to_ass_time(seg['end'])
+        raw_text = seg['text'].strip().replace("\n", " ")
+        text = auto_line_break(raw_text, max_words) if max_words > 0 else raw_text
+
+        if use_word_highlight and words_data and seg.get('id') is not None:
+            seg_words = [w for w in words_data if seg['start'] <= w['start'] < seg['end']]
+            if seg_words:
+                karaoke = ""
+                for w in seg_words:
+                    dur_cs = max(1, int((w['end'] - w['start']) * 100))
+                    karaoke += f"{{\\kf{dur_cs}}}{w['word']} "
+                text = karaoke.strip()
+
+        dialogues.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{{\\fad({fade},{fade})}}{text}")
+
+    return header + "\n".join(dialogues)
+
+def gemini_add_emojis(segments):
+    if not gemini_client or not segments:
+        return segments
+    try:
+        numbered = "\n".join(f"{i+1}. {s['text'].strip()}" for i, s in enumerate(segments))
+        prompt = (
+            "You are a subtitle emoji assistant. Add 1 relevant emoji at the END of lines that express strong emotion (happy, sad, angry, surprise, love, fear). "
+            "Rules: Add emoji ONLY to max 30% of lines. Do NOT add emoji to neutral/informational lines. "
+            f"Return exactly {len(segments)} lines as '1. text', '2. text'.\n\nLines:\n{numbered}"
+        )
+        resp = gemini_client.models.generate_content(model="gemini-2.0-flash-lite", contents=prompt)
+        result_map = {}
+        for line in resp.text.strip().splitlines():
+            line = line.strip()
+            if ". " in line:
+                idx_s, _, txt = line.partition(". ")
+                if idx_s.isdigit():
+                    result_map[int(idx_s)-1] = txt.strip()
+        return [{**s, 'text': result_map.get(i, s['text'])} for i, s in enumerate(segments)]
+    except Exception as e:
+        logging.error(f"Gemini emoji error: {e}")
+        return segments
+
+def gemini_translate_segments(segments, target_lang, lang_label):
+    if not gemini_client or not segments:
+        return segments
+    try:
+        numbered = "\n".join(f"{i+1}. {s['text'].strip()}" for i, s in enumerate(segments))
+        if target_lang == "bilingual":
+            prompt = (
+                f"Translate each subtitle line to English and return BOTH original and English translation on same line separated by \\N.\n"
+                f"Return exactly {len(segments)} lines as '1. original\\Ntranslation'.\n\nLines:\n{numbered}"
+            )
+        else:
+            lang_name = "Hindi" if target_lang == "hindi" else "English"
+            prompt = (
+                f"Translate these subtitle lines to {lang_name}. Keep it natural and short.\n"
+                f"Return exactly {len(segments)} lines as '1. text', '2. text'.\n\nLines:\n{numbered}"
+            )
+        resp = gemini_client.models.generate_content(model="gemini-2.0-flash-lite", contents=prompt)
+        result_map = {}
+        for line in resp.text.strip().splitlines():
+            line = line.strip()
+            if ". " in line:
+                idx_s, _, txt = line.partition(". ")
+                if idx_s.isdigit():
+                    result_map[int(idx_s)-1] = txt.strip()
+        return [{**s, 'text': result_map.get(i, s['text'])} for i, s in enumerate(segments)]
+    except Exception as e:
+        logging.error(f"Gemini translate error: {e}")
+        return segments
 
 def gemini_correct_segments(segments, lang_label):
     if not gemini_client:
@@ -790,9 +936,10 @@ def gemini_correct_segments(segments, lang_label):
         logging.error(f"Gemini correction error: {e}")
         return segments  # Fall back to original if Gemini fails
 
-def process_video_subtitles(bot, message, file_id, file_name, language=None, lang_label="Auto"):
+def process_video_subtitles(bot, message, file_id, file_name, language=None, lang_label="Auto", style_key="netflix", translate_mode="original"):
     chat_id = message.chat.id
-    status_msg = bot.send_message(chat_id, f"⏳ Processing shuru... Language: <b>{lang_label}</b>\n(Thoda waqt lagega)", parse_mode="HTML")
+    style_label = STYLE_PRESETS.get(style_key, {}).get("label", "🎬 Netflix")
+    status_msg = bot.send_message(chat_id, f"⏳ Downloading... 10%\nLanguage: <b>{lang_label}</b> | Style: <b>{style_label}</b>", parse_mode="HTML")
 
     tmp_dir = tempfile.mkdtemp()
     video_path = os.path.join(tmp_dir, "input_video.mp4")
@@ -809,7 +956,7 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        bot.edit_message_text("🎙️ Audio extract ho raha hai...", chat_id, status_msg.message_id)
+        bot.edit_message_text("🎙️ Audio extract ho raha hai... 25%", chat_id, status_msg.message_id)
 
         # Extract audio using ffmpeg
         subprocess.run([
@@ -826,8 +973,9 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             model_name = "small"
         else:
             model_name = "tiny"
-        bot.edit_message_text(f"🧠 Whisper ({model_name} model) se speech-to-text ho raha hai...\n⏳ 1-4 min lag sakte hain", chat_id, status_msg.message_id)
+        bot.edit_message_text(f"🧠 Whisper ({model_name}) speech-to-text... 45%\n⏳ 1-4 min lag sakte hain", chat_id, status_msg.message_id)
         model = whisper.load_model(model_name)
+        need_word_ts = style_key in ("shorts", "reels", "gaming")
         transcribe_kwargs = {
             "fp16": False,
             "beam_size": 5,
@@ -835,6 +983,7 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             "temperature": 0,
             "condition_on_previous_text": False,
             "task": "transcribe",
+            "word_timestamps": need_word_ts,
         }
         if language:
             transcribe_kwargs["language"] = language
@@ -844,16 +993,37 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             bot.edit_message_text("❌ Video mein koi speech nahi mili.", chat_id, status_msg.message_id)
             return
 
-        # Gemini correction step (Hindi/Hinglish ke liye especially useful)
-        bot.edit_message_text("✨ Gemini se text correct ho raha hai...", chat_id, status_msg.message_id)
-        corrected_segments = gemini_correct_segments(result["segments"], lang_label)
+        # Gemini correction
+        bot.edit_message_text("🤖 Gemini text correct kar raha hai... 60%", chat_id, status_msg.message_id)
+        segments = result["segments"]
+        for i, seg in enumerate(segments):
+            seg['id'] = i
+        corrected_segments = gemini_correct_segments(segments, lang_label)
 
-        # Generate ASS (with fade in/out animation)
-        ass_content = generate_ass(corrected_segments)
+        # Translation step
+        if translate_mode != "original":
+            mode_label = TRANSLATE_MODES.get(translate_mode, translate_mode)
+            bot.edit_message_text(f"🌐 Gemini translate kar raha hai ({mode_label})... 70%", chat_id, status_msg.message_id)
+            corrected_segments = gemini_translate_segments(corrected_segments, translate_mode, lang_label)
+
+        # Emoji intelligence step (only for emotional content)
+        bot.edit_message_text("😊 Gemini emotions detect kar raha hai... 80%", chat_id, status_msg.message_id)
+        corrected_segments = gemini_add_emojis(corrected_segments)
+
+        # Extract word-level timestamps if available (for Shorts/Reels/Gaming)
+        words_data = None
+        if need_word_ts:
+            words_data = []
+            for seg in result["segments"]:
+                for w in seg.get("words", []):
+                    words_data.append({"word": w.get("word","").strip(), "start": w.get("start",0), "end": w.get("end",0)})
+
+        # Generate styled ASS
+        ass_content = generate_ass_styled(corrected_segments, style_key=style_key, words_data=words_data)
         with open(ass_path, "w", encoding="utf-8") as f:
             f.write(ass_content)
 
-        bot.edit_message_text("🎬 Subtitles video mein add ho rahi hain...", chat_id, status_msg.message_id)
+        bot.edit_message_text("🎨 Subtitles video mein burn ho rahi hain... 90%", chat_id, status_msg.message_id)
 
         # Burn subtitles into video — ASS format supports fade + Devanagari font
         fonts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
@@ -865,14 +1035,23 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             output_path
         ], check=True, capture_output=True)
 
-        bot.edit_message_text("📤 Video bhej raha hoon...", chat_id, status_msg.message_id)
+        bot.edit_message_text("📤 Video bhej raha hoon... 100% ✅", chat_id, status_msg.message_id)
 
         # Send back the subtitled video
+        tr_label = TRANSLATE_MODES.get(translate_mode, translate_mode)
+        preview_text = ' '.join(s['text'] for s in corrected_segments)[:300].strip()
+        dots = '...' if len(' '.join(s['text'] for s in corrected_segments)) > 300 else ''
         with open(output_path, 'rb') as vid:
             bot.send_video(
                 chat_id,
                 vid,
-                caption=f"✅ Subtitles add ho gayi! ✨ Gemini corrected\n\n📝 <b>Transcript preview:</b>\n<i>{' '.join(s['text'] for s in corrected_segments)[:300].strip()}{'...' if len(' '.join(s['text'] for s in corrected_segments)) > 300 else ''}</i>",
+                caption=(
+                    f"✅ <b>Done! Subtitles ready!</b>\n\n"
+                    f"🎨 Style: <b>{style_label}</b>\n"
+                    f"🌐 Mode: <b>{tr_label}</b>\n"
+                    f"🗣️ Language: <b>{lang_label}</b>\n\n"
+                    f"📝 <b>Preview:</b>\n<i>{preview_text}{dots}</i>"
+                ),
                 parse_mode="HTML",
                 supports_streaming=True
             )
@@ -955,7 +1134,7 @@ def handle_lang_selection(call):
 
         lang_label, whisper_lang = lang_info
 
-        # Credit check
+        # Credit check (early, before style selection)
         user_id = call.from_user.id
         register_user_credits(user_id)
         if get_credits(user_id) < VIDEO_CREDIT_COST:
@@ -971,25 +1150,135 @@ def handle_lang_selection(call):
             )
             return
 
+        # Save language choice, then ask for style
+        pending_style_choices[vid_key] = {
+            "lang_label": lang_label,
+            "whisper_lang": whisper_lang,
+            "user_id": user_id,
+        }
+
+        style_markup = InlineKeyboardMarkup()
+        style_markup.row(
+            InlineKeyboardButton("🎬 Netflix", callback_data=f"style_{vid_key}_netflix"),
+            InlineKeyboardButton("📱 Shorts",  callback_data=f"style_{vid_key}_shorts"),
+        )
+        style_markup.row(
+            InlineKeyboardButton("🎥 Reels",   callback_data=f"style_{vid_key}_reels"),
+            InlineKeyboardButton("🎮 Gaming",  callback_data=f"style_{vid_key}_gaming"),
+        )
+        style_markup.row(
+            InlineKeyboardButton("✨ Cinematic", callback_data=f"style_{vid_key}_cinematic"),
+        )
+        try:
+            bot.edit_message_text(
+                "🎨 <b>Subtitle Style choose karo:</b>\n\n"
+                "🎬 <b>Netflix</b> — White, black outline, bottom\n"
+                "📱 <b>Shorts</b> — Word highlight, center, 3 words/line\n"
+                "🎥 <b>Reels</b> — Yellow bold, center, 4 words/line\n"
+                "🎮 <b>Gaming</b> — Neon green, bold, glow\n"
+                "✨ <b>Cinematic</b> — Clean, fade, letter-spaced",
+                call.message.chat.id, call.message.message_id,
+                reply_markup=style_markup, parse_mode="HTML"
+            )
+        except Exception:
+            bot.send_message(
+                call.message.chat.id, "🎨 <b>Style choose karo:</b>",
+                reply_markup=style_markup, parse_mode="HTML"
+            )
+        bot.answer_callback_query(call.id, f"✅ {lang_label} select!")
+
+    except Exception as e:
+        logging.error(f"Lang selection callback error: {e}")
+        bot.answer_callback_query(call.id, "❌ Error processing selection.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("style_"))
+def handle_style_selection(call):
+    try:
+        parts = call.data.split("_")
+        style_key = parts[-1]
+        vid_key = "_".join(parts[1:-1])
+
+        if vid_key not in pending_videos or vid_key not in pending_style_choices:
+            bot.answer_callback_query(call.id, "⚠️ Session expire ho gaya. Video dobara bhejein.", show_alert=True)
+            return
+
+        if style_key not in STYLE_PRESETS:
+            bot.answer_callback_query(call.id, "❌ Invalid style.")
+            return
+
+        lang_data = pending_style_choices.pop(vid_key)
+        user_id = lang_data["user_id"]
+
+        # Deduct credits now
         deduct_credits(user_id, VIDEO_CREDIT_COST)
         remaining = get_credits(user_id)
+
+        # Ask translate mode
+        tr_markup = InlineKeyboardMarkup()
+        tr_markup.row(
+            InlineKeyboardButton("📝 Original",  callback_data=f"tr_{vid_key}_{style_key}_original"),
+            InlineKeyboardButton("🇮🇳 Hindi",    callback_data=f"tr_{vid_key}_{style_key}_hindi"),
+        )
+        tr_markup.row(
+            InlineKeyboardButton("🇬🇧 English",  callback_data=f"tr_{vid_key}_{style_key}_english"),
+            InlineKeyboardButton("🔀 Bilingual", callback_data=f"tr_{vid_key}_{style_key}_bilingual"),
+        )
+
+        # Store style choice back
+        pending_style_choices[vid_key] = {**lang_data, "style_key": style_key}
+
+        style_label = STYLE_PRESETS[style_key]["label"]
+        try:
+            bot.edit_message_text(
+                f"✅ <b>{style_label}</b> select!\n\n🌐 <b>Subtitle language/mode choose karo:</b>",
+                call.message.chat.id, call.message.message_id,
+                reply_markup=tr_markup, parse_mode="HTML"
+            )
+        except Exception:
+            bot.send_message(call.message.chat.id, "🌐 <b>Mode choose karo:</b>",
+                             reply_markup=tr_markup, parse_mode="HTML")
+        bot.answer_callback_query(call.id, f"✅ {style_label}! (-{VIDEO_CREDIT_COST} Credits, Balance: {remaining})")
+
+    except Exception as e:
+        logging.error(f"Style selection error: {e}")
+        bot.answer_callback_query(call.id, "❌ Error.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("tr_"))
+def handle_translate_selection(call):
+    try:
+        parts = call.data.split("_")
+        # tr_{vid_key}_{style_key}_{translate_mode}
+        translate_mode = parts[-1]
+        style_key = parts[-2]
+        vid_key = "_".join(parts[1:-2])
+
+        if vid_key not in pending_videos or vid_key not in pending_style_choices:
+            bot.answer_callback_query(call.id, "⚠️ Session expire ho gaya.", show_alert=True)
+            return
+
+        lang_data = pending_style_choices.pop(vid_key)
         video_data = pending_videos.pop(vid_key)
 
-        bot.answer_callback_query(call.id, f"✅ {lang_label} select ki! Processing shuru... (-{VIDEO_CREDIT_COST} Credits, Balance: {remaining})")
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception:
             pass
 
+        bot.answer_callback_query(call.id, "🎬 Processing shuru!")
         threading.Thread(
             target=process_video_subtitles,
             args=(bot, video_data["message"], video_data["file_id"], video_data["file_name"]),
-            kwargs={"language": whisper_lang, "lang_label": lang_label}
+            kwargs={
+                "language": lang_data["whisper_lang"],
+                "lang_label": lang_data["lang_label"],
+                "style_key": style_key,
+                "translate_mode": translate_mode,
+            }
         ).start()
 
     except Exception as e:
-        logging.error(f"Lang selection callback error: {e}")
-        bot.answer_callback_query(call.id, "❌ Error processing selection.")
+        logging.error(f"Translate selection error: {e}")
+        bot.answer_callback_query(call.id, "❌ Error.")
 
 # =========================
 # MAIN RUNNER

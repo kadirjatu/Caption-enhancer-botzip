@@ -1,0 +1,138 @@
+✅ Word-by-word Highlighting
+Har word ka timestamp chahiye hoga.
+Example:
+Plain text
+[HELLO] world
+hello [WORLD]
+Whisper ke word-level timestamps se kar sakte ho.
+✅ Subtitle Styles
+User ko options de sakta hai:
+Netflix Style
+YouTube Shorts Style
+Reels Style
+Gaming Style
+Cinematic Style
+Inline keyboard:
+Plain text
+Choose Style:
+🎬 Netflix
+📱 Shorts
+🎥 Reels
+🎮 Gaming
+✅ Scene-based Emojis
+Ye Gemini se karwa sakte ho.
+Examples:
+Happy → 😊 😄 🎉
+Sad → 😢 💔
+Angry → 😡 🔥
+Surprise → 😲 🤯
+Lekin limit rakhna:
+Har line me emoji mat daalna.
+Sirf important moments par.
+✅ Auto Line Breaking
+Shorts/Reels ke liye bahut important hai.
+Example:
+Plain text
+❌ I am going to the market today because I need some things
+
+✅ I am going
+to the market
+
+✅ Today because
+I need things
+✅ Multiple Fonts & Colors
+User ko menu de sakta hai:
+Plain text
+Fonts:
+
+1. Poppins
+
+
+2. Montserrat
+
+
+3. Bebas Neue
+
+
+4. Anton
+
+
+
+Colors:
+⚪ White
+🟡 Yellow
+🔴 Red
+🟢 Green
+🔵 Blue
+✅ Hindi ↔️ English Translation
+Modes:
+Original
+Hindi
+English
+Bilingual
+Example:
+Plain text
+Original:
+Main ghar ja raha hun
+
+English:
+I am going home
+
+Bilingual:
+Main ghar ja raha hun
+I am going home
+✅ Hinglish Readability
+Ye feature kaafi useful hai.
+Example:
+Plain text
+Input:
+mai kal school gaya tha
+
+Output:
+Main kal school gaya tha
+Ya
+Plain text
+Kya tum theek ho
+Roman Hindi ko clean aur readable bana sakte ho.
+✅ Progress Bar
+Telegram me message edit karke:
+Plain text
+⏳ Downloading... 20%
+
+⏳ Generating subtitles... 45%
+
+🤖 Correcting with Gemini... 70%
+
+🎨 Rendering video... 90%
+
+✅ Done! 100%
+Meri priority list hai
+Word-by-word highlighting
+Auto line breaking
+Subtitle styles
+Font & color selector
+Progress bar
+Translation
+Emoji intelligence
+Jo important word ho usko:
+Yellow
+Bigger size
+Bold effect
+Ye Shorts/Reels me bahut viral style hai.
+Premium Style Presets
+🎬 Netflix
+White text
+Black background
+Bottom position
+📱 Shorts
+2–3 words per line
+Word highlight
+Center position
+🎮 Gaming
+Neon effect
+Bold font
+Fast animations
+🎥 Cinematic
+Fade in/out
+Letter spacing
+Clean look is function ko add kro bina kisi bhi working code ko rewrite nahi karna hai
