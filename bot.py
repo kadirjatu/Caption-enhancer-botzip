@@ -72,7 +72,6 @@ RATE_LIMIT_COOLDOWN = 60 # 1 minute
 # Multi-version selection settings
 ITEMS_PER_PAGE = 5
 pending_selections = {}  # Store search results for pagination
-FORCE_JOIN_CHANNEL = os.getenv("FORCE_JOIN_CHANNEL", "@Instantmoviebackup") # Change this to your channel username
 
 # =========================
 # HELPER FUNCTIONS
@@ -344,89 +343,6 @@ def create_selection_keyboard(matches, page=0, query_id=""):
     
     return markup
 
-def check_membership(user_id):
-    try:
-        member = bot.get_chat_member(FORCE_JOIN_CHANNEL, user_id)
-        if member.status in ['member', 'administrator', 'creator']:
-            return True
-    except Exception as e:
-        logging.error(f"Error checking membership: {e}")
-    return False
-
-def get_force_join_keyboard(original_query):
-    markup = InlineKeyboardMarkup()
-    # Replace with your actual channel link
-    channel_url = f"https://t.me/{FORCE_JOIN_CHANNEL.replace('@', '')}"
-    markup.add(InlineKeyboardButton("📢 Join Channel", url=channel_url))
-    markup.add(InlineKeyboardButton("🔄 Refresh / Verify", callback_data=f"verify_{original_query}"))
-    return markup
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("verify_"))
-def handle_verify(call):
-    try:
-        data_parts = call.data.split("_")
-        original_query = data_parts[1]
-        
-        # Check if this was a specific movie selection or a general search
-        movie_idx = None
-        if len(data_parts) > 2 and data_parts[2].isdigit():
-            movie_idx = int(data_parts[2])
-            
-        user_id = call.from_user.id
-        
-        if check_membership(user_id):
-            # Try to delete the "Join" message
-            try:
-                bot.delete_message(call.message.chat.id, call.message.message_id)
-            except Exception as e:
-                logging.warning(f"Could not delete join message: {e}")
-                
-            if movie_idx is not None:
-                # Automate the movie selection delivery by simulating handle_selection logic
-                movies_path = os.path.join(os.path.dirname(__file__), "movies.json")
-                if not os.path.exists(movies_path):
-                    bot.answer_callback_query(call.id, "Movie database not found.")
-                    return
-                    
-                with open(movies_path, "r") as f:
-                    movies = json.load(f)
-                
-                if movie_idx >= len(movies):
-                    bot.answer_callback_query(call.id, "Invalid selection.")
-                    return
-                
-                movie = movies[movie_idx]
-                movie_name = movie.get('name', 'Unknown')
-                original_link = movie.get('link')
-                movie_rating = movie.get('rating', 0)
-                movie_votes = movie.get('votes', 0)
-                
-                short_link = shorten_url(original_link)
-                warning = "\n\n⚠️ <b>IS File ko dusri jagah forward ⏩ kar lein, yeh file 2 minutes mein delete ho jayegi due to copyright © issue</b>"
-                rating_text = f"\n⭐ Rating: {movie_rating}/5 ({movie_votes} votes)" if movie_votes > 0 else "\n⭐ No ratings yet. Use /rate to be the first!"
-                
-                final_message = f"🎬 <b>{movie_name}</b>\n\n{short_link}{rating_text}{warning}"
-                
-                sent_msg = bot.send_message(call.message.chat.id, final_message, parse_mode="HTML")
-                threading.Thread(target=delete_message_after_delay, args=(call.message.chat.id, sent_msg.message_id, 120)).start()
-                bot.answer_callback_query(call.id, "✅ Membership verified! Movie bhej di gayi hai.")
-            else:
-                # Re-trigger the movie search
-                class FakeMessage:
-                    def __init__(self, chat_id, from_user, text):
-                        self.chat = type('Chat', (), {'id': chat_id})
-                        self.from_user = from_user
-                        self.text = text
-                        self.message_id = call.message.message_id
-                
-                fake_msg = FakeMessage(call.message.chat.id, call.from_user, original_query)
-                handle_message(fake_msg)
-                bot.answer_callback_query(call.id)
-        else:
-            bot.answer_callback_query(call.id, "❌ Aapne abhi tak channel join nahi kiya hai!", show_alert=True)
-    except Exception as e:
-        logging.error(f"Verification callback error: {e}")
-        bot.answer_callback_query(call.id, "Error processing verification.")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("sel_"))
 def handle_selection(call):
@@ -435,21 +351,6 @@ def handle_selection(call):
         query_id = parts[1]
         movie_idx = int(parts[-1])
         
-        # Force Join Check BEFORE showing the final link
-        if not check_membership(call.from_user.id):
-            bot.answer_callback_query(call.id, "❌ Aapko channel join karna hoga link dekhne ke liye!", show_alert=True)
-            
-            header = "❌ <b>Access Denied!</b>\n\nAapko hamara channel join karna hoga movie links dekhne ke liye."
-            # Store the specific movie index in callback_data so refresh can deliver it directly
-            markup = InlineKeyboardMarkup()
-            channel_url = f"https://t.me/{FORCE_JOIN_CHANNEL.replace('@', '')}"
-            markup.add(InlineKeyboardButton("📢 Join Channel", url=channel_url))
-            markup.add(InlineKeyboardButton("🔄 Refresh / Verify", callback_data=f"verify_{query_id}_{movie_idx}"))
-            
-            # Send NEW message instead of editing to avoid "message to edit not found" errors
-            bot.send_message(call.message.chat.id, header, reply_markup=markup, parse_mode="HTML")
-            return
-
         movies_path = os.path.join(os.path.dirname(__file__), "movies.json")
         if not os.path.exists(movies_path):
             bot.answer_callback_query(call.id, "Movie database not found.")
