@@ -74,6 +74,53 @@ ITEMS_PER_PAGE = 5
 pending_selections = {}  # Store search results for pagination
 
 # =========================
+# CREDIT SYSTEM
+# =========================
+SIGNUP_CREDITS = 10
+REFERRAL_CREDITS = 10
+AD_CREDITS = 3
+VIDEO_CREDIT_COST = 2
+AD_COOLDOWN_SECONDS = 300  # 5 minutes
+ADSTERRA_LINK = os.getenv("ADSTERRA_LINK", "https://www.profitableratecpm.com")
+
+user_credits = {}       # {user_id: int}
+ad_cooldowns = {}       # {user_id: float timestamp}
+registered_users = set()  # set of user_ids already given signup credits
+user_referrers = {}     # {new_user_id: referrer_user_id}
+
+def get_credits(user_id):
+    return user_credits.get(str(user_id), 0)
+
+def add_credits(user_id, amount):
+    uid = str(user_id)
+    user_credits[uid] = user_credits.get(uid, 0) + amount
+
+def deduct_credits(user_id, amount):
+    uid = str(user_id)
+    user_credits[uid] = max(0, user_credits.get(uid, 0) - amount)
+
+def register_user_credits(user_id, referrer_id=None):
+    uid = str(user_id)
+    if uid not in registered_users:
+        registered_users.add(uid)
+        add_credits(uid, SIGNUP_CREDITS)
+        if referrer_id and str(referrer_id) != uid:
+            add_credits(str(referrer_id), REFERRAL_CREDITS)
+            user_referrers[uid] = str(referrer_id)
+        return True
+    return False
+
+def get_main_keyboard(user_id):
+    markup = InlineKeyboardMarkup()
+    markup.row(InlineKeyboardButton("🎬 Create Caption Video", callback_data="menu_video"))
+    markup.row(InlineKeyboardButton("💰 Watch Ad & Earn (+3)", callback_data="menu_earn"))
+    markup.row(
+        InlineKeyboardButton("🎁 Invite Friends", callback_data="menu_invite"),
+        InlineKeyboardButton("👑 Premium", callback_data="menu_premium")
+    )
+    return markup
+
+# =========================
 # HELPER FUNCTIONS
 # =========================
 def shorten_url(long_url):
@@ -165,7 +212,21 @@ def is_rate_limited(user_id):
 @bot.message_handler(commands=["start"])
 def start(message):
     name = message.from_user.first_name or "User"
-    
+    user_id = message.from_user.id
+
+    # Handle referral from deep link: /start ref_12345
+    referrer_id = None
+    parts = message.text.strip().split()
+    if len(parts) > 1 and parts[1].startswith("ref_"):
+        try:
+            referrer_id = int(parts[1][4:])
+        except ValueError:
+            pass
+
+    is_new = register_user_credits(user_id, referrer_id)
+    credits = get_credits(user_id)
+    new_user_note = "\n\n🎉 <b>Welcome bonus: +10 Credits!</b>" if is_new else ""
+
     # Movie of the Day logic
     motd_text = ""
     try:
@@ -183,7 +244,11 @@ def start(message):
     except Exception as e:
         logging.error(f"MOTD Error: {e}")
 
-    bot.reply_to(message, f"Hello {name}! 🎬 Welcome to the <b>Instan movie Bot</b>.{motd_text}\n\n{bot_guide_text}")
+    bot.reply_to(
+        message,
+        f"Hello {name}! 🎬 Welcome to the <b>Instan movie Bot</b>.{new_user_note}{motd_text}\n\n💳 <b>Balance: {credits} Credits</b>\n\n{bot_guide_text}",
+        reply_markup=get_main_keyboard(user_id)
+    )
 
 bot_guide_text = (
     f"I can give you legal movie info and recommendations.\n\n"
@@ -196,6 +261,107 @@ bot_guide_text = (
     f"- No spamming (1 request per minute).\n"
     f"- Only admin-approved links are allowed."
 )
+
+@bot.message_handler(commands=["balance"])
+def balance_cmd(message):
+    register_user_credits(message.from_user.id)
+    credits = get_credits(message.from_user.id)
+    bot.reply_to(message, f"💳 <b>Aapka Balance: {credits} Credits</b>", reply_markup=get_main_keyboard(message.from_user.id))
+
+# =========================
+# CREDIT CALLBACKS
+# =========================
+@bot.callback_query_handler(func=lambda call: call.data.startswith("menu_"))
+def handle_menu(call):
+    user_id = call.from_user.id
+    register_user_credits(user_id)
+    action = call.data
+
+    if action == "menu_earn":
+        now = time.time()
+        last = ad_cooldowns.get(str(user_id), 0)
+        remaining = AD_COOLDOWN_SECONDS - (now - last)
+        if remaining > 0:
+            mins = int(remaining // 60)
+            secs = int(remaining % 60)
+            bot.answer_callback_query(call.id, f"⏳ {mins}m {secs}s baad try karo!", show_alert=True)
+            return
+        markup = InlineKeyboardMarkup()
+        markup.row(InlineKeyboardButton("📺 Ad Dekho", url=ADSTERRA_LINK))
+        markup.row(InlineKeyboardButton("✅ Claim Credits (+3)", callback_data="claim_ad"))
+        bot.send_message(
+            call.message.chat.id,
+            "📺 <b>Ad Dekho & Credits Kamao!</b>\n\n"
+            "1. Neeche 'Ad Dekho' button dabao\n"
+            "2. Ad page visit karo\n"
+            "3. Wapas aa kar '✅ Claim Credits' dabao\n\n"
+            f"💰 <b>+{AD_CREDITS} Credits milenge!</b>",
+            reply_markup=markup,
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+
+    elif action == "menu_invite":
+        bot_username = "Tastingofthe_bot"
+        ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+        bot.send_message(
+            call.message.chat.id,
+            f"🎁 <b>Dosto ko Invite Karo!</b>\n\n"
+            f"Har dost join karne par <b>+{REFERRAL_CREDITS} Credits</b> milenge!\n\n"
+            f"🔗 Tera referral link:\n<code>{ref_link}</code>",
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+
+    elif action == "menu_premium":
+        bot.send_message(
+            call.message.chat.id,
+            "👑 <b>Premium Plan</b>\n\n"
+            "Coming soon! Premium users ko unlimited video processing milega.\n\n"
+            "Admin se contact karo: @admin",
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+
+    elif action == "menu_video":
+        credits = get_credits(user_id)
+        bot.send_message(
+            call.message.chat.id,
+            f"🎬 <b>Caption Video Banao</b>\n\n"
+            f"💳 Balance: <b>{credits} Credits</b>\n"
+            f"💸 Cost: <b>{VIDEO_CREDIT_COST} Credits</b> per video\n\n"
+            f"Video ya document send karo — main subtitles add kar dunga!",
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "claim_ad")
+def claim_ad(call):
+    user_id = call.from_user.id
+    now = time.time()
+    last = ad_cooldowns.get(str(user_id), 0)
+    remaining = AD_COOLDOWN_SECONDS - (now - last)
+
+    if remaining > 0:
+        mins = int(remaining // 60)
+        secs = int(remaining % 60)
+        bot.answer_callback_query(call.id, f"⏳ {mins}m {secs}s baad claim karo!", show_alert=True)
+        return
+
+    ad_cooldowns[str(user_id)] = now
+    add_credits(user_id, AD_CREDITS)
+    credits = get_credits(user_id)
+    bot.answer_callback_query(call.id, f"✅ +{AD_CREDITS} Credits mil gaye!", show_alert=True)
+    try:
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    except Exception:
+        pass
+    bot.send_message(
+        call.message.chat.id,
+        f"✅ <b>+{AD_CREDITS} Credits claim ho gaye!</b>\n\n💳 <b>Naya Balance: {credits} Credits</b>\n\n⏳ 5 minute baad dobara earn kar sakte ho.",
+        reply_markup=get_main_keyboard(user_id),
+        parse_mode="HTML"
+    )
 
 @bot.message_handler(commands=["psych"])
 def psych_system(message):
@@ -788,9 +954,28 @@ def handle_lang_selection(call):
             return
 
         lang_label, whisper_lang = lang_info
+
+        # Credit check
+        user_id = call.from_user.id
+        register_user_credits(user_id)
+        if get_credits(user_id) < VIDEO_CREDIT_COST:
+            bot.answer_callback_query(call.id, f"❌ Credits kam hain! {VIDEO_CREDIT_COST} Credits chahiye.", show_alert=True)
+            bot.send_message(
+                call.message.chat.id,
+                f"❌ <b>Insufficient Credits!</b>\n\n"
+                f"💳 Balance: <b>{get_credits(user_id)} Credits</b>\n"
+                f"💸 Required: <b>{VIDEO_CREDIT_COST} Credits</b>\n\n"
+                f"💰 Ad dekh kar credits kamao!",
+                reply_markup=get_main_keyboard(user_id),
+                parse_mode="HTML"
+            )
+            return
+
+        deduct_credits(user_id, VIDEO_CREDIT_COST)
+        remaining = get_credits(user_id)
         video_data = pending_videos.pop(vid_key)
 
-        bot.answer_callback_query(call.id, f"✅ {lang_label} select ki! Processing shuru...")
+        bot.answer_callback_query(call.id, f"✅ {lang_label} select ki! Processing shuru... (-{VIDEO_CREDIT_COST} Credits, Balance: {remaining})")
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception:
