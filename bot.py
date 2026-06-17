@@ -893,22 +893,22 @@ STYLE_PRESETS = {
     "shorts": {
         "font": "Noto Sans Devanagari", "size": 26, "bold": 1,
         "color": "&H00FFFFFF", "outline_color": "&H00000000",
-        "outline": 2, "shadow": 0, "alignment": 5,
-        "marginv": 0, "fade": 100, "spacing": 0,
-        "label": "📱 Shorts", "word_highlight": True, "max_words": 3
+        "outline": 2, "shadow": 0, "alignment": 2,
+        "marginv": 25, "fade": 100, "spacing": 0,
+        "label": "📱 Shorts", "word_highlight": True, "max_words": 5
     },
     "reels": {
         "font": "Noto Sans Devanagari", "size": 24, "bold": 1,
         "color": "&H0000FFFF", "outline_color": "&H00000000",
-        "outline": 2, "shadow": 0, "alignment": 5,
-        "marginv": 0, "fade": 150, "spacing": 0,
-        "label": "🎥 Reels", "max_words": 4
+        "outline": 2, "shadow": 0, "alignment": 2,
+        "marginv": 25, "fade": 150, "spacing": 0,
+        "label": "🎥 Reels", "max_words": 5
     },
     "gaming": {
         "font": "Noto Sans Devanagari", "size": 28, "bold": 1,
         "color": "&H0000FF00", "outline_color": "&H00FF0000",
-        "outline": 3, "shadow": 1, "alignment": 5,
-        "marginv": 0, "fade": 50, "spacing": 1,
+        "outline": 3, "shadow": 1, "alignment": 2,
+        "marginv": 20, "fade": 50, "spacing": 1,
         "label": "🎮 Gaming"
     },
     "cinematic": {
@@ -992,19 +992,31 @@ def generate_ass(segments, font_name="Noto Sans Devanagari"):
         dialogues.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{{\\fad(200,200)}}{text}")
     return header + "\n".join(dialogues)
 
-def auto_line_break(text, max_words=4):
+def auto_line_break(text, max_words=5):
     words = text.strip().split()
     if len(words) <= max_words:
         return text
-    lines = []
-    for i in range(0, len(words), max_words):
-        lines.append(" ".join(words[i:i+max_words]))
-    return "\\N".join(lines)
+    # Max 2 lines — split roughly in half
+    mid = (len(words) + 1) // 2
+    line1 = " ".join(words[:mid])
+    line2 = " ".join(words[mid:])
+    return line1 + "\\N" + line2
+
+def _has_devanagari(segments):
+    for seg in segments:
+        for ch in seg.get('text', ''):
+            if '\u0900' <= ch <= '\u097F':
+                return True
+    return False
 
 def generate_ass_styled(segments, style_key="netflix", words_data=None, font_name=None, color=None):
     p = STYLE_PRESETS.get(style_key, STYLE_PRESETS["netflix"])
-    eff_font  = font_name if font_name else p['font']
-    eff_color = color     if color     else p['color']
+    # Auto-fallback: if text has Devanagari, always use Noto — other fonts show boxes
+    if _has_devanagari(segments):
+        eff_font = "Noto Sans Devanagari"
+    else:
+        eff_font = font_name if font_name else p['font']
+    eff_color = color if color else p['color']
     header = (
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 384\nPlayResY: 288\nWrapStyle: 0\n\n"
         "[V4+ Styles]\n"
