@@ -64,7 +64,11 @@ if GOOGLE_SHEETS_ID and GOOGLE_SERVICE_ACCOUNT_JSON_BASE64:
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+logging.getLogger("TeleBot").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.ERROR)
+logging.getLogger("requests").setLevel(logging.ERROR)
+logging.getLogger("httpx").setLevel(logging.ERROR)
 
 # Usage tracking (simple in-memory)
 user_usage = {}
