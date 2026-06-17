@@ -1302,7 +1302,7 @@ def handle_video_subtitle(message):
         bot.reply_to(message, f"❌ Video bahut badi hai! Max size <b>200MB</b> hai.\nAapki video: {file_size // (1024*1024)}MB", parse_mode="HTML")
         return
 
-    # Store video info and ask language
+    # Store video info and ask what user wants to do
     vid_key = f"{message.chat.id}_{message.message_id}"
     pending_videos[vid_key] = {
         "file_id": file_id,
@@ -1313,19 +1313,216 @@ def handle_video_subtitle(message):
 
     markup = InlineKeyboardMarkup()
     markup.row(
-        InlineKeyboardButton("🇬🇧 English", callback_data=f"sublang_{vid_key}_en"),
-        InlineKeyboardButton("🇮🇳 Hindi", callback_data=f"sublang_{vid_key}_hi"),
+        InlineKeyboardButton("🎬 Subtitles Add Karo", callback_data=f"vidaction_{vid_key}_subtitle"),
     )
     markup.row(
-        InlineKeyboardButton("🔀 Hinglish (Auto)", callback_data=f"sublang_{vid_key}_hinglish"),
+        InlineKeyboardButton("🔮 AI Video Enhance Karo", callback_data=f"vidaction_{vid_key}_enhance"),
     )
 
     bot.reply_to(
         message,
-        "🎬 <b>Video mili!</b>\n\nSubtitles kis language mein chahiye?",
+        "🎬 <b>Video mili!</b>\n\nKya karna hai is video ke saath?",
         reply_markup=markup,
         parse_mode="HTML"
     )
+
+VIDEO_QUALITY_OPTIONS = {
+    "1080p30": {"label": "📺 1080p + 30fps",  "width": 1920, "height": 1080, "fps": 30, "crf": 18},
+    "1080p60": {"label": "📺 1080p + 60fps",  "width": 1920, "height": 1080, "fps": 60, "crf": 18},
+    "2k60":    {"label": "🖥️ 2K + 60fps",    "width": 2560, "height": 1440, "fps": 60, "crf": 16},
+    "4k60":    {"label": "🎥 4K + 60fps",     "width": 3840, "height": 2160, "fps": 60, "crf": 14},
+}
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("vidaction_"))
+def handle_video_action(call):
+    try:
+        parts   = call.data.split("_")
+        action  = parts[-1]          # subtitle / enhance
+        vid_key = "_".join(parts[1:-1])
+
+        if vid_key not in pending_videos:
+            bot.answer_callback_query(call.id, "⚠️ Session expire ho gaya. Video dobara bhejein.", show_alert=True)
+            return
+
+        if action == "subtitle":
+            # Show language selection (same as before)
+            markup = InlineKeyboardMarkup()
+            markup.row(
+                InlineKeyboardButton("🇬🇧 English",        callback_data=f"sublang_{vid_key}_en"),
+                InlineKeyboardButton("🇮🇳 Hindi",           callback_data=f"sublang_{vid_key}_hi"),
+            )
+            markup.row(
+                InlineKeyboardButton("🔀 Hinglish (Auto)", callback_data=f"sublang_{vid_key}_hinglish"),
+            )
+            try:
+                bot.edit_message_text(
+                    "🎬 <b>Subtitles — Language choose karo:</b>",
+                    call.message.chat.id, call.message.message_id,
+                    reply_markup=markup, parse_mode="HTML"
+                )
+            except Exception:
+                bot.send_message(call.message.chat.id, "🌐 Language choose karo:", reply_markup=markup, parse_mode="HTML")
+            bot.answer_callback_query(call.id, "🎬 Subtitle mode!")
+
+        elif action == "enhance":
+            user_id = call.from_user.id
+            register_user_credits(user_id)
+            if get_credits(user_id) < ENHANCE_CREDIT_COST:
+                bot.answer_callback_query(call.id, f"❌ Credits kam hain! {ENHANCE_CREDIT_COST} credit chahiye.", show_alert=True)
+                return
+            # Show quality options
+            qm = InlineKeyboardMarkup()
+            qm.row(
+                InlineKeyboardButton("📺 1080p + 30fps", callback_data=f"vidqual_{vid_key}_1080p30"),
+                InlineKeyboardButton("📺 1080p + 60fps", callback_data=f"vidqual_{vid_key}_1080p60"),
+            )
+            qm.row(
+                InlineKeyboardButton("🖥️ 2K + 60fps",  callback_data=f"vidqual_{vid_key}_2k60"),
+                InlineKeyboardButton("🎥 4K + 60fps",   callback_data=f"vidqual_{vid_key}_4k60"),
+            )
+            try:
+                bot.edit_message_text(
+                    "🔮 <b>AI Video Enhance</b>\n\n"
+                    "📺 <b>1080p 30fps</b> — Fast, standard HD\n"
+                    "📺 <b>1080p 60fps</b> — Smooth HD\n"
+                    "🖥️ <b>2K 60fps</b> — Ultra smooth QHD\n"
+                    "🎥 <b>4K 60fps</b> — Cinema quality (slow)\n\n"
+                    f"💳 Cost: <b>{ENHANCE_CREDIT_COST} Credit</b>",
+                    call.message.chat.id, call.message.message_id,
+                    reply_markup=qm, parse_mode="HTML"
+                )
+            except Exception:
+                bot.send_message(call.message.chat.id, "🎥 Quality choose karo:", reply_markup=qm, parse_mode="HTML")
+            bot.answer_callback_query(call.id, "🔮 Enhancement mode!")
+        else:
+            bot.answer_callback_query(call.id, "❌ Unknown action.")
+
+    except Exception as e:
+        logging.error(f"Video action error: {e}")
+        bot.answer_callback_query(call.id, "❌ Error.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("vidqual_"))
+def handle_video_quality(call):
+    try:
+        parts    = call.data.split("_")
+        qual_key = parts[-1]
+        vid_key  = "_".join(parts[1:-1])
+
+        if vid_key not in pending_videos:
+            bot.answer_callback_query(call.id, "⚠️ Session expire ho gaya.", show_alert=True)
+            return
+
+        if qual_key not in VIDEO_QUALITY_OPTIONS:
+            bot.answer_callback_query(call.id, "❌ Invalid quality.")
+            return
+
+        user_id    = call.from_user.id
+        video_data = pending_videos.pop(vid_key)
+        deduct_credits(user_id, ENHANCE_CREDIT_COST)
+        remaining  = get_credits(user_id)
+        qual       = VIDEO_QUALITY_OPTIONS[qual_key]
+
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
+
+        bot.answer_callback_query(call.id, f"🎬 {qual['label']} — Processing! (-{ENHANCE_CREDIT_COST} Credit, Balance: {remaining})")
+        threading.Thread(
+            target=process_video_enhance,
+            args=(bot, video_data["message"], video_data["file_id"]),
+            kwargs={"qual_key": qual_key}
+        ).start()
+
+    except Exception as e:
+        logging.error(f"Video quality error: {e}")
+        bot.answer_callback_query(call.id, "❌ Error.")
+
+def process_video_enhance(bot, message, file_id, qual_key="1080p30"):
+    chat_id   = message.chat.id
+    qual      = VIDEO_QUALITY_OPTIONS.get(qual_key, VIDEO_QUALITY_OPTIONS["1080p30"])
+    w, h, fps = qual["width"], qual["height"], qual["fps"]
+    crf       = qual["crf"]
+    label     = qual["label"]
+    status_msg = bot.send_message(
+        chat_id,
+        f"⏳ Enhance shuru... 0%\n🔮 Target: <b>{label}</b>",
+        parse_mode="HTML"
+    )
+    tmp_dir     = tempfile.mkdtemp()
+    input_path  = os.path.join(tmp_dir, "input.mp4")
+    output_path = os.path.join(tmp_dir, "enhanced.mp4")
+
+    try:
+        # Download video
+        bot.edit_message_text(f"📥 Video download ho rahi hai... 15%\n🔮 Target: <b>{label}</b>", chat_id, status_msg.message_id, parse_mode="HTML")
+        file_info = bot.get_file(file_id)
+        file_url  = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
+        resp = requests.get(file_url, stream=True, timeout=120)
+        with open(input_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        bot.edit_message_text(f"🔮 AI Enhancement processing... 40%\n📺 Upscaling to <b>{w}x{h} @ {fps}fps</b>", chat_id, status_msg.message_id, parse_mode="HTML")
+
+        # Build FFmpeg enhancement filter chain:
+        # 1. scale to target with high-quality Lanczos
+        # 2. fps conversion with motion interpolation (minterpolate for 60fps)
+        # 3. unsharp — sharpens details like ESRGAN
+        # 4. hqdn3d — removes noise/grain cleanly
+        # 5. eq — slight contrast + saturation boost
+        sharpen    = "unsharp=lx=5:ly=5:la=0.8:cx=5:cy=5:ca=0.4"
+        denoise    = "hqdn3d=4.0:3.0:6.0:4.5"
+        color_fix  = "eq=contrast=1.05:saturation=1.1:brightness=0.02"
+        scale_filt = f"scale={w}:{h}:flags=lanczos+accurate_rnd"
+
+        if fps == 60:
+            fps_filt = f"minterpolate=fps={fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1"
+        else:
+            fps_filt = f"fps={fps}"
+
+        vf = f"{scale_filt},{fps_filt},{sharpen},{denoise},{color_fix}"
+
+        subprocess.run([
+            "ffmpeg", "-y", "-i", input_path,
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "slow", "-crf", str(crf),
+            "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart",
+            output_path
+        ], check=True, capture_output=True)
+
+        bot.edit_message_text(f"📤 Enhanced video bhej raha hoon... 90%", chat_id, status_msg.message_id)
+
+        output_size = os.path.getsize(output_path) // (1024 * 1024)
+        with open(output_path, "rb") as vf_out:
+            bot.send_video(
+                chat_id, vf_out,
+                caption=(
+                    f"✅ <b>AI Enhancement Done!</b>\n\n"
+                    f"🎯 Quality: <b>{label}</b>\n"
+                    f"📐 Resolution: <b>{w}x{h}</b>\n"
+                    f"🎞️ FPS: <b>{fps}fps</b>\n"
+                    f"✨ Filters: Lanczos + Sharpen + Denoise + Color\n"
+                    f"📦 Output size: <b>{output_size}MB</b>"
+                ),
+                parse_mode="HTML", supports_streaming=True
+            )
+        bot.delete_message(chat_id, status_msg.message_id)
+
+    except subprocess.CalledProcessError as e:
+        err = e.stderr.decode(errors="ignore")[-300:] if e.stderr else str(e)
+        logging.error(f"FFmpeg enhance error: {err}")
+        bot.edit_message_text(f"❌ FFmpeg error:\n<code>{err}</code>", chat_id, status_msg.message_id, parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Video enhance error: {e}")
+        bot.edit_message_text(f"❌ Error: {e}", chat_id, status_msg.message_id)
+    finally:
+        import shutil
+        try:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("sublang_"))
 def handle_lang_selection(call):
