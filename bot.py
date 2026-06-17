@@ -732,6 +732,22 @@ TRANSLATE_MODES = {
     "bilingual": "🔀 Bilingual",
 }
 
+FONT_OPTIONS = {
+    "poppins":     ("🅿️ Poppins",      "Poppins"),
+    "montserrat":  ("🅼 Montserrat",    "Montserrat"),
+    "bebas":       ("🆃 Bebas Neue",    "Bebas Neue"),
+    "anton":       ("🆃 Anton",         "Anton"),
+    "devanagari":  ("🔤 Noto Devanagari","Noto Sans Devanagari"),
+}
+
+COLOR_OPTIONS = {
+    "white":   ("⚪ White",   "&H00FFFFFF"),
+    "yellow":  ("🟡 Yellow",  "&H0000FFFF"),
+    "red":     ("🔴 Red",     "&H000000FF"),
+    "green":   ("🟢 Green",   "&H0000FF00"),
+    "cyan":    ("🔵 Cyan",    "&H00FFFF00"),
+}
+
 def seconds_to_srt_time(seconds):
     h = int(seconds // 3600)
     m = int((seconds % 3600) // 60)
@@ -790,13 +806,15 @@ def auto_line_break(text, max_words=4):
         lines.append(" ".join(words[i:i+max_words]))
     return "\\N".join(lines)
 
-def generate_ass_styled(segments, style_key="netflix", words_data=None):
+def generate_ass_styled(segments, style_key="netflix", words_data=None, font_name=None, color=None):
     p = STYLE_PRESETS.get(style_key, STYLE_PRESETS["netflix"])
+    eff_font  = font_name if font_name else p['font']
+    eff_color = color     if color     else p['color']
     header = (
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 384\nPlayResY: 288\nWrapStyle: 0\n\n"
         "[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        f"Style: Default,{p['font']},{p['size']},{p['color']},&H000000FF,{p['outline_color']},&H64000000,{p['bold']},0,0,0,100,100,{p['spacing']},0,1,{p['outline']},{p['shadow']},{p['alignment']},10,10,{p['marginv']},1\n"
+        f"Style: Default,{eff_font},{p['size']},{eff_color},&H000000FF,{p['outline_color']},&H64000000,{p['bold']},0,0,0,100,100,{p['spacing']},0,1,{p['outline']},{p['shadow']},{p['alignment']},10,10,{p['marginv']},1\n"
         "Style: Highlight,{font},{size},&H0000FFFF,&H000000FF,{oc},&H64000000,1,0,0,0,100,100,{sp},0,1,{ol},{sh},{al},10,10,{mv},1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     ).format(
@@ -936,7 +954,7 @@ def gemini_correct_segments(segments, lang_label):
         logging.error(f"Gemini correction error: {e}")
         return segments  # Fall back to original if Gemini fails
 
-def process_video_subtitles(bot, message, file_id, file_name, language=None, lang_label="Auto", style_key="netflix", translate_mode="original"):
+def process_video_subtitles(bot, message, file_id, file_name, language=None, lang_label="Auto", style_key="netflix", translate_mode="original", font_name=None, color_hex=None):
     chat_id = message.chat.id
     style_label = STYLE_PRESETS.get(style_key, {}).get("label", "🎬 Netflix")
     status_msg = bot.send_message(chat_id, f"⏳ Downloading... 10%\nLanguage: <b>{lang_label}</b> | Style: <b>{style_label}</b>", parse_mode="HTML")
@@ -1019,7 +1037,7 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
                     words_data.append({"word": w.get("word","").strip(), "start": w.get("start",0), "end": w.get("end",0)})
 
         # Generate styled ASS
-        ass_content = generate_ass_styled(corrected_segments, style_key=style_key, words_data=words_data)
+        ass_content = generate_ass_styled(corrected_segments, style_key=style_key, words_data=words_data, font_name=font_name, color=color_hex)
         with open(ass_path, "w", encoding="utf-8") as f:
             f.write(ass_content)
 
@@ -1247,7 +1265,6 @@ def handle_style_selection(call):
 def handle_translate_selection(call):
     try:
         parts = call.data.split("_")
-        # tr_{vid_key}_{style_key}_{translate_mode}
         translate_mode = parts[-1]
         style_key = parts[-2]
         vid_key = "_".join(parts[1:-2])
@@ -1257,27 +1274,91 @@ def handle_translate_selection(call):
             return
 
         lang_data = pending_style_choices.pop(vid_key)
+        pending_style_choices[vid_key] = {**lang_data, "style_key": style_key, "translate_mode": translate_mode}
+
+        # Show Font + Color selection
+        fm = InlineKeyboardMarkup()
+        fm.row(
+            InlineKeyboardButton("🅿️ Poppins",    callback_data=f"font_{vid_key}_poppins_white"),
+            InlineKeyboardButton("🅼 Montserrat", callback_data=f"font_{vid_key}_montserrat_white"),
+        )
+        fm.row(
+            InlineKeyboardButton("🆃 Bebas Neue", callback_data=f"font_{vid_key}_bebas_white"),
+            InlineKeyboardButton("🆃 Anton",      callback_data=f"font_{vid_key}_anton_white"),
+        )
+        fm.row(
+            InlineKeyboardButton("🔤 Noto (Hindi)", callback_data=f"font_{vid_key}_devanagari_white"),
+        )
+        fm.row(
+            InlineKeyboardButton("⚪ White",  callback_data=f"font_{vid_key}_devanagari_white"),
+            InlineKeyboardButton("🟡 Yellow", callback_data=f"font_{vid_key}_devanagari_yellow"),
+            InlineKeyboardButton("🔴 Red",    callback_data=f"font_{vid_key}_devanagari_red"),
+        )
+        fm.row(
+            InlineKeyboardButton("⏩ Default (Skip)", callback_data=f"font_{vid_key}_default_default"),
+        )
+        try:
+            bot.edit_message_text(
+                "🖋️ <b>Font & Color choose karo:</b>\n\n"
+                "<i>Top row = Font, Bottom row = Color\n"
+                "Ya 'Skip' karo default style use karne ke liye</i>",
+                call.message.chat.id, call.message.message_id,
+                reply_markup=fm, parse_mode="HTML"
+            )
+        except Exception:
+            bot.send_message(call.message.chat.id, "🖋️ <b>Font choose karo:</b>", reply_markup=fm, parse_mode="HTML")
+        bot.answer_callback_query(call.id, "✅ Mode select!")
+
+    except Exception as e:
+        logging.error(f"Translate selection error: {e}")
+        bot.answer_callback_query(call.id, "❌ Error.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("font_"))
+def handle_font_selection(call):
+    try:
+        parts = call.data.split("_")
+        color_key = parts[-1]
+        font_key  = parts[-2]
+        vid_key   = "_".join(parts[1:-2])
+
+        if vid_key not in pending_videos or vid_key not in pending_style_choices:
+            bot.answer_callback_query(call.id, "⚠️ Session expire ho gaya.", show_alert=True)
+            return
+
+        lang_data  = pending_style_choices.pop(vid_key)
         video_data = pending_videos.pop(vid_key)
+
+        # Resolve font name and color hex
+        if font_key == "default":
+            font_name_str = None
+            color_hex     = None
+            sel_label     = "Default"
+        else:
+            font_name_str = FONT_OPTIONS.get(font_key, (None, None))[1]
+            color_hex     = COLOR_OPTIONS.get(color_key, ("⚪ White", "&H00FFFFFF"))[1]
+            sel_label     = f"{FONT_OPTIONS.get(font_key,('',''))[0]} {COLOR_OPTIONS.get(color_key,('⚪',''))[0]}"
 
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
         except Exception:
             pass
 
-        bot.answer_callback_query(call.id, "🎬 Processing shuru!")
+        bot.answer_callback_query(call.id, f"🎬 Processing shuru! {sel_label}")
         threading.Thread(
             target=process_video_subtitles,
             args=(bot, video_data["message"], video_data["file_id"], video_data["file_name"]),
             kwargs={
-                "language": lang_data["whisper_lang"],
-                "lang_label": lang_data["lang_label"],
-                "style_key": style_key,
-                "translate_mode": translate_mode,
+                "language":       lang_data["whisper_lang"],
+                "lang_label":     lang_data["lang_label"],
+                "style_key":      lang_data.get("style_key", "netflix"),
+                "translate_mode": lang_data.get("translate_mode", "original"),
+                "font_name":      font_name_str,
+                "color_hex":      color_hex,
             }
         ).start()
 
     except Exception as e:
-        logging.error(f"Translate selection error: {e}")
+        logging.error(f"Font selection error: {e}")
         bot.answer_callback_query(call.id, "❌ Error.")
 
 # =========================
