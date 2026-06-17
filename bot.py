@@ -29,7 +29,8 @@ PHP_API_URL = os.getenv("PHP_API_URL", "http://127.0.0.1:8000/movies.php")
 # Hardcoded to match user's new link directly to avoid secret conflicts
 GOOGLE_SHEETS_ID = "1BDGOwk2SRKsuVvHRT4eNkeTwAuOjhppQneD19wnfXf8"
 GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY")
+REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")  # Set when Real-ESRGAN API is ready
 
 gemini_client = None
 if GEMINI_API_KEY:
@@ -79,7 +80,8 @@ pending_selections = {}  # Store search results for pagination
 SIGNUP_CREDITS = 10
 REFERRAL_CREDITS = 10
 AD_CREDITS = 3
-VIDEO_CREDIT_COST = 2
+VIDEO_CREDIT_COST   = 2
+ENHANCE_CREDIT_COST = 1   # 1 credit per image/video enhance
 AD_COOLDOWN_SECONDS = 300  # 5 minutes
 ADSTERRA_LINK = os.getenv("ADSTERRA_LINK", "https://www.effectivecpmnetwork.com/z0kuixztez?key=669f4fed4da4bb1e1233d5254a9b8887")
 
@@ -113,6 +115,7 @@ def register_user_credits(user_id, referrer_id=None):
 def get_main_keyboard(user_id):
     markup = InlineKeyboardMarkup()
     markup.row(InlineKeyboardButton("🎬 Create Caption Video", callback_data="menu_video"))
+    markup.row(InlineKeyboardButton("🔮 AI Enhance (Image/Video)", callback_data="menu_enhance"))
     markup.row(InlineKeyboardButton("💰 Watch Ad & Earn (+3)", callback_data="menu_earn"))
     markup.row(
         InlineKeyboardButton("🎁 Invite Friends", callback_data="menu_invite"),
@@ -672,6 +675,194 @@ def handle_message(message):
         logging.error(f"Psych Fallback Execution Error: {e}")
         sent_msg = bot.reply_to(message, "Sorry, I couldn't fetch the info right now.")
         threading.Thread(target=delete_message_after_delay, args=(message.chat.id, sent_msg.message_id, 30)).start()
+
+# =========================
+# REAL-ESRGAN ENHANCEMENT
+# =========================
+ESRGAN_MODEL = "nightmareai/real-esrgan:42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b"
+pending_enhance = {}  # {chat_id: True} — tracks users waiting to send image
+
+def replicate_enhance_image(image_url, scale=4, face_enhance=False):
+    """Call Replicate Real-ESRGAN API. Returns enhanced image URL or raises."""
+    if not REPLICATE_API_TOKEN:
+        raise RuntimeError("REPLICATE_API_TOKEN not set. API key add karein.")
+    headers = {
+        "Authorization": f"Token {REPLICATE_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    # Create prediction
+    payload = {
+        "version": ESRGAN_MODEL.split(":")[1],
+        "input": {"image": image_url, "scale": scale, "face_enhance": face_enhance}
+    }
+    r = requests.post("https://api.replicate.com/v1/predictions", json=payload, headers=headers, timeout=30)
+    r.raise_for_status()
+    pred = r.json()
+    pred_id = pred["id"]
+
+    # Poll for result (max 3 minutes)
+    for _ in range(36):
+        time.sleep(5)
+        r2 = requests.get(f"https://api.replicate.com/v1/predictions/{pred_id}", headers=headers, timeout=15)
+        r2.raise_for_status()
+        data = r2.json()
+        status = data.get("status")
+        if status == "succeeded":
+            return data["output"]
+        elif status in ("failed", "canceled"):
+            raise RuntimeError(f"Enhancement failed: {data.get('error','unknown error')}")
+    raise RuntimeError("Enhancement timeout — 3 min se zyada lag gaya.")
+
+def process_image_enhance(bot, message, file_id, scale=4, face_enhance=False):
+    """Download image from Telegram, upload to tmpfiles.org, call ESRGAN, send result."""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    status_msg = bot.send_message(chat_id, "⏳ Image enhance ho rahi hai... 0%\n🔮 Real-ESRGAN AI processing")
+
+    try:
+        # Download image from Telegram
+        bot.edit_message_text("📥 Image download ho rahi hai... 20%", chat_id, status_msg.message_id)
+        file_info = bot.get_file(file_id)
+        file_url  = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
+        resp = requests.get(file_url, timeout=60)
+        img_bytes = resp.content
+
+        # Upload to tmpfiles.org for public URL (Replicate needs a public URL)
+        bot.edit_message_text("☁️ Image upload ho rahi hai... 40%", chat_id, status_msg.message_id)
+        upload_resp = requests.post(
+            "https://tmpfiles.org/api/v1/upload",
+            files={"file": ("image.jpg", img_bytes, "image/jpeg")},
+            timeout=30
+        )
+        upload_resp.raise_for_status()
+        upload_data = upload_resp.json()
+        # tmpfiles.org returns url like https://tmpfiles.org/XXXXX/image.jpg
+        public_url = upload_data["data"]["url"].replace("tmpfiles.org/", "tmpfiles.org/dl/")
+
+        # Call Real-ESRGAN
+        bot.edit_message_text("🔮 Real-ESRGAN AI enhance kar raha hai... 60%\n⏳ 30-60 seconds lagenge", chat_id, status_msg.message_id)
+        enhanced_url = replicate_enhance_image(public_url, scale=scale, face_enhance=face_enhance)
+
+        # Download enhanced image
+        bot.edit_message_text("📥 Enhanced image download ho rahi hai... 85%", chat_id, status_msg.message_id)
+        enhanced_resp = requests.get(enhanced_url, timeout=60)
+
+        bot.edit_message_text("📤 Bhej raha hoon... 100% ✅", chat_id, status_msg.message_id)
+        bot.send_photo(
+            chat_id,
+            enhanced_resp.content,
+            caption=(
+                f"✅ <b>AI Enhancement Done!</b>\n\n"
+                f"🔮 <b>Real-ESRGAN {scale}x</b> upscaling\n"
+                f"😊 Face Enhance: <b>{'ON' if face_enhance else 'OFF'}</b>\n"
+                f"💳 Cost: <b>-{ENHANCE_CREDIT_COST} Credit</b>"
+            ),
+            parse_mode="HTML"
+        )
+        bot.delete_message(chat_id, status_msg.message_id)
+
+    except RuntimeError as e:
+        bot.edit_message_text(f"❌ <b>Enhancement Error:</b>\n{e}", chat_id, status_msg.message_id, parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"ESRGAN error: {e}")
+        bot.edit_message_text(f"❌ Error: {e}", chat_id, status_msg.message_id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "menu_enhance")
+def handle_menu_enhance(call):
+    user_id = call.from_user.id
+    register_user_credits(user_id)
+    credits = get_credits(user_id)
+    bot.answer_callback_query(call.id)
+    if credits < ENHANCE_CREDIT_COST:
+        bot.send_message(
+            call.message.chat.id,
+            f"❌ <b>Credits kam hain!</b>\n\n"
+            f"💳 Balance: <b>{credits} Credits</b>\n"
+            f"💸 Required: <b>{ENHANCE_CREDIT_COST} Credit</b>\n\n"
+            f"💰 Ad dekh kar credits kamao!",
+            parse_mode="HTML", reply_markup=get_main_keyboard(user_id)
+        )
+        return
+    esrgan_status = "✅ Ready" if REPLICATE_API_TOKEN else "⚠️ API key pending"
+    bot.send_message(
+        call.message.chat.id,
+        f"🔮 <b>AI Image/Video Enhancer</b>\n\n"
+        f"<b>Real-ESRGAN</b> se image 4x sharper aur HD ban jaati hai!\n\n"
+        f"💳 Cost: <b>{ENHANCE_CREDIT_COST} Credit</b> per image\n"
+        f"🔑 API Status: <b>{esrgan_status}</b>\n\n"
+        f"📸 <b>Abhi image bhejo enhance karne ke liye!</b>\n\n"
+        f"<i>Options:\n"
+        f"• /enhance — Normal 4x enhance\n"
+        f"• /enhance_face — Face detail boost ke saath\n"
+        f"• /enhance2x — 2x (smaller file)</i>",
+        parse_mode="HTML"
+    )
+    pending_enhance[str(call.message.chat.id)] = {"scale": 4, "face": False}
+
+@bot.message_handler(commands=["enhance"])
+def cmd_enhance(message):
+    user_id = message.from_user.id
+    register_user_credits(user_id)
+    pending_enhance[str(message.chat.id)] = {"scale": 4, "face": False}
+    bot.reply_to(message,
+        "🔮 <b>AI Enhance Mode ON</b>\n\n"
+        "📸 Abhi image bhejo — Real-ESRGAN 4x enhance karega!\n"
+        f"💳 Cost: <b>{ENHANCE_CREDIT_COST} Credit</b>",
+        parse_mode="HTML"
+    )
+
+@bot.message_handler(commands=["enhance_face"])
+def cmd_enhance_face(message):
+    user_id = message.from_user.id
+    register_user_credits(user_id)
+    pending_enhance[str(message.chat.id)] = {"scale": 4, "face": True}
+    bot.reply_to(message,
+        "🔮 <b>AI Face Enhance Mode ON</b>\n\n"
+        "📸 Abhi image bhejo — Real-ESRGAN face details boost karega!\n"
+        f"💳 Cost: <b>{ENHANCE_CREDIT_COST} Credit</b>",
+        parse_mode="HTML"
+    )
+
+@bot.message_handler(commands=["enhance2x"])
+def cmd_enhance2x(message):
+    user_id = message.from_user.id
+    register_user_credits(user_id)
+    pending_enhance[str(message.chat.id)] = {"scale": 2, "face": False}
+    bot.reply_to(message,
+        "🔮 <b>AI Enhance 2x Mode ON</b>\n\n"
+        "📸 Abhi image bhejo — Real-ESRGAN 2x enhance karega!\n"
+        f"💳 Cost: <b>{ENHANCE_CREDIT_COST} Credit</b>",
+        parse_mode="HTML"
+    )
+
+@bot.message_handler(content_types=["photo"])
+def handle_photo(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    key = str(chat_id)
+
+    if key not in pending_enhance:
+        return  # Not in enhance mode, ignore
+
+    enhance_opts = pending_enhance.pop(key)
+    register_user_credits(user_id)
+
+    if get_credits(user_id) < ENHANCE_CREDIT_COST:
+        bot.reply_to(message,
+            f"❌ <b>Credits kam hain!</b>\n💳 Balance: <b>{get_credits(user_id)}</b>\n"
+            f"💸 Required: <b>{ENHANCE_CREDIT_COST} Credit</b>",
+            parse_mode="HTML", reply_markup=get_main_keyboard(user_id)
+        )
+        return
+
+    deduct_credits(user_id, ENHANCE_CREDIT_COST)
+    # Use highest resolution photo
+    file_id = message.photo[-1].file_id
+    threading.Thread(
+        target=process_image_enhance,
+        args=(bot, message, file_id),
+        kwargs={"scale": enhance_opts["scale"], "face_enhance": enhance_opts["face"]}
+    ).start()
 
 # =========================
 # SPEECH TO TEXT + SUBTITLE
