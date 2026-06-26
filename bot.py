@@ -1191,28 +1191,32 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             audio_path
         ], check=True, capture_output=True)
 
-        # Transcribe with whisper
-        import whisper
-        # Use better model for Hindi/Hinglish, tiny is enough for English
-        if language == "hi" or language is None:
-            model_name = "small"
-        else:
-            model_name = "tiny"
-        bot.edit_message_text(f"🧠 Whisper ({model_name}) speech-to-text... 45%\n⏳ 1-4 min lag sakte hain", chat_id, status_msg.message_id)
-        model = whisper.load_model(model_name)
+        # Transcribe with faster-whisper
+        from faster_whisper import WhisperModel
+        model_name = "small"
+        bot.edit_message_text(f"🧠 Faster-Whisper ({model_name}) speech-to-text... 45%\n⏳ 1-4 min lag sakte hain", chat_id, status_msg.message_id)
+        fw_model = WhisperModel(model_name, device="cpu", compute_type="int8")
         need_word_ts = style_key in ("shorts", "reels", "gaming")
-        transcribe_kwargs = {
-            "fp16": False,
-            "beam_size": 5,
-            "best_of": 5,
-            "temperature": 0,
-            "condition_on_previous_text": False,
-            "task": "transcribe",
-            "word_timestamps": need_word_ts,
-        }
-        if language:
-            transcribe_kwargs["language"] = language
-        result = model.transcribe(audio_path, **transcribe_kwargs)
+        fw_segments, _info = fw_model.transcribe(
+            audio_path,
+            beam_size=5,
+            best_of=5,
+            temperature=0,
+            condition_on_previous_text=False,
+            task="transcribe",
+            word_timestamps=need_word_ts,
+            language=language if language else None,
+        )
+        # Convert faster-whisper output to dict format (same as openai-whisper)
+        segments_list = []
+        for i, seg in enumerate(fw_segments):
+            seg_dict = {"id": i, "start": seg.start, "end": seg.end, "text": seg.text}
+            if need_word_ts and seg.words:
+                seg_dict["words"] = [{"word": w.word, "start": w.start, "end": w.end} for w in seg.words]
+            else:
+                seg_dict["words"] = []
+            segments_list.append(seg_dict)
+        result = {"segments": segments_list}
 
         if not result.get("segments"):
             bot.edit_message_text("❌ Video mein koi speech nahi mili.", chat_id, status_msg.message_id)

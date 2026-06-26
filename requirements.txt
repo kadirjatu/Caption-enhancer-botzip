@@ -5,5 +5,5 @@ google-auth
 google-api-python-client
 google-genai
 sift-stack-py
-sift-stack-py
-sift-stack-py
+faster-whisper
+faster-whisper
