@@ -21,6 +21,29 @@ import psychology_tiers
 load_dotenv()
 
 # =========================
+# TELEGRAM FILE SIZE LIMIT
+# =========================
+TELEGRAM_MAX_BYTES = 49 * 1024 * 1024  # 49 MB safe limit
+
+def compress_for_telegram(path):
+    """If file > 49MB, re-encode with increasing CRF until it fits. Returns final path."""
+    if os.path.getsize(path) <= TELEGRAM_MAX_BYTES:
+        return path
+    base, ext = os.path.splitext(path)
+    compressed_path = base + "_compressed" + ext
+    for crf in (28, 32, 36, 40):
+        subprocess.run([
+            "ffmpeg", "-y", "-i", path,
+            "-c:v", "libx264", "-preset", "fast", "-crf", str(crf),
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            compressed_path
+        ], check=True, capture_output=True)
+        if os.path.getsize(compressed_path) <= TELEGRAM_MAX_BYTES:
+            return compressed_path
+    return compressed_path  # send whatever we have as last resort
+
+# =========================
 # ENV VARIABLES
 # =========================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -1266,11 +1289,14 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
 
         bot.edit_message_text("📤 Video bhej raha hoon... 100% ✅", chat_id, status_msg.message_id)
 
+        # Compress if output exceeds Telegram's 50MB limit
+        send_path = compress_for_telegram(output_path)
+
         # Send back the subtitled video
         tr_label = TRANSLATE_MODES.get(translate_mode, translate_mode)
         preview_text = ' '.join(s['text'] for s in corrected_segments)[:300].strip()
         dots = '...' if len(' '.join(s['text'] for s in corrected_segments)) > 300 else ''
-        with open(output_path, 'rb') as vid:
+        with open(send_path, 'rb') as vid:
             bot.send_video(
                 chat_id,
                 vid,
@@ -1510,8 +1536,10 @@ def process_video_enhance(bot, message, file_id, qual_key="1080p30"):
 
         bot.edit_message_text(f"📤 Enhanced video bhej raha hoon... 90%", chat_id, status_msg.message_id)
 
-        output_size = os.path.getsize(output_path) // (1024 * 1024)
-        with open(output_path, "rb") as vf_out:
+        # Compress if output exceeds Telegram's 50MB limit
+        send_path_enh = compress_for_telegram(output_path)
+        output_size = os.path.getsize(send_path_enh) // (1024 * 1024)
+        with open(send_path_enh, "rb") as vf_out:
             bot.send_video(
                 chat_id, vf_out,
                 caption=(
