@@ -1,6 +1,0 @@
-python-dotenv
-pyTelegramBotAPI
-requests
-google-auth
-google-api-python-client
-google-genai
