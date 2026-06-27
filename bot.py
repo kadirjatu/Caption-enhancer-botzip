@@ -1025,6 +1025,40 @@ def auto_line_break(text, max_words=5):
     line2 = " ".join(words[mid:])
     return line1 + "\\N" + line2
 
+def _chunk_segment(seg):
+    """YouTube-style: split a long segment into single-line timed chunks.
+    Devanagari script gets a smaller per-line character limit (chars are wider)."""
+    text = seg['text'].strip().replace('\n', ' ')
+    words = text.split()
+    if not words:
+        return [seg]
+    is_dev = any('\u0900' <= ch <= '\u097F' for ch in text)
+    limit = 20 if is_dev else 38   # ~4-5 Hindi words | ~7-8 English words per line
+    # Greedy chunk-building
+    chunks, current, cur_len = [], [], 0
+    for word in words:
+        add_len = len(word) + (1 if current else 0)
+        if current and cur_len + add_len > limit:
+            chunks.append(' '.join(current))
+            current, cur_len = [word], len(word)
+        else:
+            current.append(word)
+            cur_len += add_len
+    if current:
+        chunks.append(' '.join(current))
+    if len(chunks) <= 1:
+        return [seg]
+    # Distribute time proportionally by chunk character length
+    total_dur = seg['end'] - seg['start']
+    total_chars = sum(len(c) for c in chunks) or 1
+    result, t = [], seg['start']
+    for i, chunk in enumerate(chunks):
+        prop = len(chunk) / total_chars
+        chunk_end = (t + total_dur * prop) if i < len(chunks) - 1 else seg['end']
+        result.append({**seg, 'text': chunk, 'start': t, 'end': chunk_end, 'words': []})
+        t = chunk_end
+    return result
+
 def _has_devanagari(segments):
     for seg in segments:
         for ch in seg.get('text', ''):
@@ -1057,13 +1091,19 @@ def generate_ass_styled(segments, style_key="netflix", words_data=None, font_nam
     use_word_highlight = p.get('word_highlight', False)
     dialogues = []
 
+    # ── YouTube-style: expand every segment into single-line chunks ──
+    expanded = []
     for seg in segments:
+        expanded.extend(_chunk_segment(seg))
+
+    for seg in expanded:
         start = seconds_to_ass_time(seg['start'])
         end = seconds_to_ass_time(seg['end'])
         raw_text = seg['text'].strip().replace("\n", " ")
-        text = auto_line_break(raw_text, max_words) if max_words > 0 else raw_text
+        # Chunk is already 1 line — no need for auto_line_break
+        text = raw_text
 
-        if use_word_highlight and words_data and seg.get('id') is not None:
+        if use_word_highlight and words_data:
             seg_words = [w for w in words_data if seg['start'] <= w['start'] < seg['end']]
             if seg_words:
                 karaoke = ""
