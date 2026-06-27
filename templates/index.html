@@ -8,99 +8,91 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f0f1a;
-  --card:#1a1a2e;
-  --card2:#16213e;
-  --accent:#5b6cf9;
-  --accent2:#9b59b6;
-  --green:#27ae60;
-  --red:#e74c3c;
-  --text:#e8e8f0;
-  --sub:#8888aa;
-  --radius:16px;
+  --bg:#0f0f1a;--card:#1a1a2e;--card2:#16213e;
+  --accent:#5b6cf9;--accent2:#9b59b6;
+  --green:#27ae60;--red:#e74c3c;--yellow:#f39c12;
+  --text:#e8e8f0;--sub:#8888aa;--radius:16px;
 }
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
 
-/* ── Header ── */
 .header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:18px 16px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #ffffff10}
 .header-icon{width:44px;height:44px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.header-title{font-size:18px;font-weight:700;letter-spacing:.3px}
+.header-title{font-size:18px;font-weight:700}
 .header-sub{font-size:12px;color:var(--sub);margin-top:2px}
 
-/* ── Nav Tabs ── */
 .tabs{display:flex;background:#12121f;border-bottom:1px solid #ffffff08;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tab{padding:11px 18px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:.2s}
 .tab.active{color:var(--accent);border-color:var(--accent)}
 
-/* ── Pages ── */
 .page{display:none;padding:16px;animation:fadeIn .2s ease}
 .page.active{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-/* ── Cards ── */
 .card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px;border:1px solid #ffffff08}
 .card-title{font-size:15px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
-.card-sub{font-size:12px;color:var(--sub);margin-bottom:14px}
 
-/* ── Feature Grid ── */
-.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
-.feat-card{background:var(--card2);border-radius:var(--radius);padding:18px 12px;text-align:center;cursor:pointer;border:1px solid #ffffff08;transition:.18s;active:scale(.96)}
+.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.feat-card{background:var(--card2);border-radius:var(--radius);padding:18px 12px;text-align:center;cursor:pointer;border:1px solid #ffffff08;transition:.18s}
 .feat-card:active{transform:scale(.96);border-color:var(--accent)}
 .feat-icon{font-size:32px;margin-bottom:8px}
 .feat-name{font-size:13px;font-weight:700}
 .feat-desc{font-size:11px;color:var(--sub);margin-top:3px;line-height:1.4}
 
-/* ── Search ── */
-.search-box{display:flex;gap:8px;margin-bottom:12px}
-.search-input{flex:1;background:var(--card2);border:1px solid #ffffff15;border-radius:12px;padding:11px 14px;color:var(--text);font-size:14px;outline:none}
+.search-input{flex:1;background:var(--card2);border:1px solid #ffffff15;border-radius:12px;padding:11px 14px;color:var(--text);font-size:14px;outline:none;width:100%}
 .search-input::placeholder{color:var(--sub)}
 .search-input:focus{border-color:var(--accent)}
-.btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+
+.btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s;width:100%}
 .btn:active{transform:scale(.96)}
-.btn.secondary{background:var(--card2);border:1px solid #ffffff20}
-.btn.green{background:var(--green)}
-.btn.danger{background:var(--red)}
 .btn:disabled{opacity:.5;pointer-events:none}
 
-/* ── Movie Results ── */
 .movie-item{background:var(--card2);border-radius:12px;padding:13px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;border:1px solid #ffffff08;transition:.15s}
 .movie-item:active{border-color:var(--accent)}
-.movie-icon{font-size:20px;flex-shrink:0}
 .movie-name{font-size:13px;font-weight:600;flex:1}
 .movie-link{font-size:11px;color:var(--accent)}
 .empty{text-align:center;color:var(--sub);padding:32px 0;font-size:14px}
 
-/* ── Upload Zone ── */
 .upload-zone{background:var(--card2);border:2px dashed #ffffff20;border-radius:var(--radius);padding:28px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:14px}
-.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:#1a1a3e}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent)}
 .upload-icon{font-size:36px;margin-bottom:8px}
 .upload-text{font-size:14px;font-weight:600;margin-bottom:4px}
 .upload-sub{font-size:12px;color:var(--sub)}
 .upload-filename{font-size:12px;color:var(--green);margin-top:8px;font-weight:600}
 
-/* ── Select / Options ── */
 .opt-label{font-size:12px;color:var(--sub);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 .opt-grid{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
-.opt-btn{background:var(--card2);border:1px solid #ffffff15;border-radius:10px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;color:var(--text)}
+.opt-btn{background:var(--card2);border:1px solid #ffffff15;border-radius:10px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text);transition:.15s}
 .opt-btn.sel{background:var(--accent);border-color:var(--accent);color:#fff}
 .opt-btn:active{transform:scale(.95)}
 
-/* ── Progress ── */
-.progress-wrap{margin-bottom:14px;display:none}
-.progress-wrap.show{display:block}
-.progress-bar{height:6px;background:#ffffff15;border-radius:6px;overflow:hidden;margin-top:6px}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;transition:width .3s;width:0%}
-.progress-text{font-size:12px;color:var(--sub);display:flex;justify-content:space-between}
+/* ── Real-time Job Progress Panel ── */
+.job-panel{background:var(--card);border-radius:var(--radius);padding:18px;margin-bottom:14px;border:1px solid var(--accent)30;display:none}
+.job-panel.show{display:block;animation:fadeIn .3s ease}
+.job-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.job-title{font-size:14px;font-weight:700;color:var(--accent)}
+.job-eta{font-size:12px;color:var(--sub);background:var(--card2);padding:3px 10px;border-radius:20px}
+.job-step{font-size:13px;color:var(--text);margin-bottom:10px;min-height:20px}
+.job-bar{height:8px;background:#ffffff12;border-radius:8px;overflow:hidden;margin-bottom:8px}
+.job-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:8px;transition:width .5s ease;width:0%}
+.job-pct{font-size:12px;color:var(--sub);text-align:right}
+.job-done{text-align:center;font-size:13px;font-weight:700;padding:8px;border-radius:8px;margin-top:8px}
+.job-done.success{background:#27ae6020;color:var(--green);border:1px solid var(--green)40}
+.job-done.error{background:#e74c3c20;color:var(--red);border:1px solid var(--red)40}
 
-/* ── Toast ── */
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e1e3e;color:var(--text);border-radius:12px;padding:10px 20px;font-size:13px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;z-index:999;border:1px solid var(--accent);white-space:nowrap}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* Upload progress (upload phase) */
+.up-progress{margin-bottom:14px;display:none}
+.up-progress.show{display:block}
+.up-bar{height:5px;background:#ffffff12;border-radius:5px;overflow:hidden;margin-top:6px}
+.up-fill{height:100%;background:var(--accent);border-radius:5px;transition:width .2s;width:0%}
+.up-text{font-size:12px;color:var(--sub);display:flex;justify-content:space-between}
 
-/* ── Color swatches ── */
 .colors{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .color-swatch{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.15s}
 .color-swatch.sel{border-color:#fff;transform:scale(1.15)}
+
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e1e3e;color:var(--text);border-radius:12px;padding:10px 20px;font-size:13px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;z-index:999;border:1px solid var(--accent);white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -121,65 +113,47 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="tab" onclick="showPage('enhance-image')">🖼️ Image AI</div>
 </div>
 
-<!-- ═══════════════ HOME ═══════════════ -->
+<!-- HOME -->
 <div class="page active" id="page-home">
   <div class="card" style="background:linear-gradient(135deg,#1a1a2e,#0f0f2a);border-color:#5b6cf930;margin-top:4px">
     <div class="card-title">👋 Welcome to SMART Bot!</div>
-    <div class="card-sub" style="margin-bottom:0">Sab kuch ek jagah — movies, AI subtitles, video & image enhance.</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:2px">Sab kuch ek jagah — movies, AI subtitles, video & image enhance.</div>
   </div>
   <div class="feat-grid">
-    <div class="feat-card" onclick="showPage('search')">
-      <div class="feat-icon">🎥</div>
-      <div class="feat-name">Movie Search</div>
-      <div class="feat-desc">Koi bhi film dhundho instantly</div>
-    </div>
-    <div class="feat-card" onclick="showPage('subtitle')">
-      <div class="feat-icon">📝</div>
-      <div class="feat-name">AI Subtitles</div>
-      <div class="feat-desc">1GB+ video pe captions add karo</div>
-    </div>
-    <div class="feat-card" onclick="showPage('enhance-video')">
-      <div class="feat-icon">⚡</div>
-      <div class="feat-name">Video Enhance</div>
-      <div class="feat-desc">720p → 4K AI upscaling</div>
-    </div>
-    <div class="feat-card" onclick="showPage('enhance-image')">
-      <div class="feat-icon">✨</div>
-      <div class="feat-name">Image Enhance</div>
-      <div class="feat-desc">Real-ESRGAN 2x / 4x boost</div>
-    </div>
+    <div class="feat-card" onclick="showPage('search')"><div class="feat-icon">🎥</div><div class="feat-name">Movie Search</div><div class="feat-desc">Koi bhi film dhundho instantly</div></div>
+    <div class="feat-card" onclick="showPage('subtitle')"><div class="feat-icon">📝</div><div class="feat-name">AI Subtitles</div><div class="feat-desc">1GB+ video pe captions add karo</div></div>
+    <div class="feat-card" onclick="showPage('enhance-video')"><div class="feat-icon">⚡</div><div class="feat-name">Video Enhance</div><div class="feat-desc">720p → 4K AI upscaling</div></div>
+    <div class="feat-card" onclick="showPage('enhance-image')"><div class="feat-icon">✨</div><div class="feat-name">Image Enhance</div><div class="feat-desc">Real-ESRGAN 2x / 4x boost</div></div>
   </div>
   <div class="card" style="border-color:#27ae6030">
     <div class="card-title">📌 Mini App ka faida</div>
     <div style="font-size:13px;color:var(--sub);line-height:1.7;margin-top:4px">
       ✅ <b style="color:var(--text)">1GB+ videos</b> seedha upload karo<br>
       ✅ Telegram ka <b style="color:var(--text)">20MB limit bypass</b><br>
-      ✅ Sab features ek jagah pe<br>
+      ✅ <b style="color:var(--text)">Real-time progress</b> + ETA dikhai deta hai<br>
       ✅ Result bot pe aayega
     </div>
   </div>
 </div>
 
-<!-- ═══════════════ MOVIE SEARCH ═══════════════ -->
+<!-- MOVIE SEARCH -->
 <div class="page" id="page-search">
-  <div class="search-box" style="margin-top:4px">
-    <input class="search-input" id="search-q" placeholder="Movie ka naam likho..." oninput="doSearch()" autocomplete="off"/>
+  <div style="margin-top:4px">
+    <input class="search-input" id="search-q" placeholder="🔍 Movie ka naam likho..." oninput="doSearch()" autocomplete="off" style="margin-bottom:12px"/>
+    <div id="search-results"><div class="empty">Kuch likho aur results dekhein</div></div>
   </div>
-  <div id="search-results"><div class="empty">🔍 Kuch likho aur results dekhein</div></div>
 </div>
 
-<!-- ═══════════════ SUBTITLE ═══════════════ -->
+<!-- SUBTITLE -->
 <div class="page" id="page-subtitle">
   <div style="margin-top:4px">
-    <div class="upload-zone" id="sub-zone" onclick="document.getElementById('sub-file').click()"
-         ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
-         ondrop="handleDrop(event,'sub-file','sub-zone','sub-fname')">
+    <div class="upload-zone" id="sub-zone" onclick="document.getElementById('sub-file').click()">
       <div class="upload-icon">🎬</div>
       <div class="upload-text">Video Upload karo</div>
       <div class="upload-sub">MP4, MKV, MOV • Koi bhi size (1GB+ bhi!)</div>
       <div class="upload-filename" id="sub-fname"></div>
     </div>
-    <input type="file" id="sub-file" accept="video/*" style="display:none" onchange="setFile(this,'sub-zone','sub-fname')"/>
+    <input type="file" id="sub-file" accept="video/*" style="display:none" onchange="setFile(this,'sub-zone','sub-fname','sub')"/>
 
     <div class="opt-label">🗣️ Language</div>
     <div class="opt-grid" id="opt-lang">
@@ -216,24 +190,37 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
     <div class="opt-label">🎨 Color</div>
     <div class="colors" id="color-swatches">
-      <div class="color-swatch sel" style="background:#ffffff" data-val="&H00FFFFFF" onclick="pickColor(this)" title="White"></div>
-      <div class="color-swatch" style="background:#ffff00" data-val="&H0000FFFF" onclick="pickColor(this)" title="Yellow"></div>
-      <div class="color-swatch" style="background:#00ff00" data-val="&H0000FF00" onclick="pickColor(this)" title="Green"></div>
-      <div class="color-swatch" style="background:#00ffff" data-val="&H00FFFF00" onclick="pickColor(this)" title="Cyan"></div>
-      <div class="color-swatch" style="background:#ff6b6b" data-val="&H004444FF" onclick="pickColor(this)" title="Red"></div>
-      <div class="color-swatch" style="background:#f39c12" data-val="&H001299F3" onclick="pickColor(this)" title="Orange"></div>
+      <div class="color-swatch sel" style="background:#ffffff" data-val="&H00FFFFFF" onclick="pickColor(this)"></div>
+      <div class="color-swatch" style="background:#ffff00" data-val="&H0000FFFF" onclick="pickColor(this)"></div>
+      <div class="color-swatch" style="background:#00ff00" data-val="&H0000FF00" onclick="pickColor(this)"></div>
+      <div class="color-swatch" style="background:#00ffff" data-val="&H00FFFF00" onclick="pickColor(this)"></div>
+      <div class="color-swatch" style="background:#ff6b6b" data-val="&H004444FF" onclick="pickColor(this)"></div>
+      <div class="color-swatch" style="background:#f39c12" data-val="&H001299F3" onclick="pickColor(this)"></div>
     </div>
 
-    <div class="progress-wrap" id="sub-progress">
-      <div class="progress-text"><span id="sub-prog-text">Uploading...</span><span id="sub-prog-pct">0%</span></div>
-      <div class="progress-bar"><div class="progress-fill" id="sub-prog-fill"></div></div>
+    <!-- Upload progress -->
+    <div class="up-progress" id="sub-up-progress">
+      <div class="up-text"><span>⬆️ Uploading...</span><span id="sub-up-pct">0%</span></div>
+      <div class="up-bar"><div class="up-fill" id="sub-up-fill"></div></div>
     </div>
 
-    <button class="btn" style="width:100%" id="sub-btn" onclick="submitSubtitle()">🚀 Subtitle Add Karo</button>
+    <!-- Real-time job panel -->
+    <div class="job-panel" id="sub-job-panel">
+      <div class="job-header">
+        <div class="job-title">⚙️ Processing Live</div>
+        <div class="job-eta" id="sub-eta">ETA: --</div>
+      </div>
+      <div class="job-step" id="sub-step">Starting...</div>
+      <div class="job-bar"><div class="job-fill" id="sub-fill"></div></div>
+      <div class="job-pct" id="sub-pct">0%</div>
+      <div class="job-done" id="sub-done" style="display:none"></div>
+    </div>
+
+    <button class="btn" id="sub-btn" onclick="submitSubtitle()">🚀 Subtitle Add Karo</button>
   </div>
 </div>
 
-<!-- ═══════════════ VIDEO ENHANCE ═══════════════ -->
+<!-- VIDEO ENHANCE -->
 <div class="page" id="page-enhance-video">
   <div style="margin-top:4px">
     <div class="upload-zone" id="ev-zone" onclick="document.getElementById('ev-file').click()">
@@ -242,7 +229,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="upload-sub">MP4, MKV, MOV • Koi bhi size</div>
       <div class="upload-filename" id="ev-fname"></div>
     </div>
-    <input type="file" id="ev-file" accept="video/*" style="display:none" onchange="setFile(this,'ev-zone','ev-fname')"/>
+    <input type="file" id="ev-file" accept="video/*" style="display:none" onchange="setFile(this,'ev-zone','ev-fname','ev')"/>
 
     <div class="opt-label">🎯 Output Quality</div>
     <div class="opt-grid" id="opt-quality">
@@ -253,24 +240,27 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="opt-btn" data-val="4k60" onclick="pickOpt(this,'opt-quality')">🚀 4K 60fps</div>
     </div>
 
-    <div class="card" style="border-color:#5b6cf930;margin-bottom:14px">
-      <div style="font-size:12px;color:var(--sub);line-height:1.7">
-        ✅ Lanczos upscaling + Sharpening<br>
-        ✅ Noise reduction + Color correction<br>
-        ✅ Faststart (web-optimized)
+    <div class="up-progress" id="ev-up-progress">
+      <div class="up-text"><span>⬆️ Uploading...</span><span id="ev-up-pct">0%</span></div>
+      <div class="up-bar"><div class="up-fill" id="ev-up-fill"></div></div>
+    </div>
+
+    <div class="job-panel" id="ev-job-panel">
+      <div class="job-header">
+        <div class="job-title">⚙️ Processing Live</div>
+        <div class="job-eta" id="ev-eta">ETA: --</div>
       </div>
+      <div class="job-step" id="ev-step">Starting...</div>
+      <div class="job-bar"><div class="job-fill" id="ev-fill"></div></div>
+      <div class="job-pct" id="ev-pct">0%</div>
+      <div class="job-done" id="ev-done" style="display:none"></div>
     </div>
 
-    <div class="progress-wrap" id="ev-progress">
-      <div class="progress-text"><span id="ev-prog-text">Uploading...</span><span id="ev-prog-pct">0%</span></div>
-      <div class="progress-bar"><div class="progress-fill" id="ev-prog-fill"></div></div>
-    </div>
-
-    <button class="btn" style="width:100%" id="ev-btn" onclick="submitEnhanceVideo()">⚡ Enhance Karo</button>
+    <button class="btn" id="ev-btn" onclick="submitEnhanceVideo()">⚡ Enhance Karo</button>
   </div>
 </div>
 
-<!-- ═══════════════ IMAGE ENHANCE ═══════════════ -->
+<!-- IMAGE ENHANCE -->
 <div class="page" id="page-enhance-image">
   <div style="margin-top:4px">
     <div class="upload-zone" id="ei-zone" onclick="document.getElementById('ei-file').click()">
@@ -279,7 +269,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="upload-sub">JPG, PNG, WebP</div>
       <div class="upload-filename" id="ei-fname"></div>
     </div>
-    <input type="file" id="ei-file" accept="image/*" style="display:none" onchange="setFile(this,'ei-zone','ei-fname')"/>
+    <input type="file" id="ei-file" accept="image/*" style="display:none" onchange="setFile(this,'ei-zone','ei-fname','ei')"/>
 
     <div class="opt-label">🔍 Enhancement Mode</div>
     <div class="opt-grid" id="opt-emode">
@@ -289,20 +279,23 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="opt-btn" data-val="2x_face" onclick="pickOpt(this,'opt-emode')">😊 2x + Face</div>
     </div>
 
-    <div class="card" style="border-color:#9b59b630;margin-bottom:14px">
-      <div style="font-size:12px;color:var(--sub);line-height:1.7">
-        ✅ Real-ESRGAN AI model<br>
-        ✅ Face enhancement option<br>
-        ✅ Crystal clear output
+    <div class="up-progress" id="ei-up-progress">
+      <div class="up-text"><span>⬆️ Uploading...</span><span id="ei-up-pct">0%</span></div>
+      <div class="up-bar"><div class="up-fill" id="ei-up-fill"></div></div>
+    </div>
+
+    <div class="job-panel" id="ei-job-panel">
+      <div class="job-header">
+        <div class="job-title">⚙️ Processing Live</div>
+        <div class="job-eta" id="ei-eta">ETA: --</div>
       </div>
+      <div class="job-step" id="ei-step">Starting...</div>
+      <div class="job-bar"><div class="job-fill" id="ei-fill"></div></div>
+      <div class="job-pct" id="ei-pct">0%</div>
+      <div class="job-done" id="ei-done" style="display:none"></div>
     </div>
 
-    <div class="progress-wrap" id="ei-progress">
-      <div class="progress-text"><span>Uploading...</span><span id="ei-prog-pct">0%</span></div>
-      <div class="progress-bar"><div class="progress-fill" id="ei-prog-fill"></div></div>
-    </div>
-
-    <button class="btn" style="width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2))" id="ei-btn" onclick="submitEnhanceImage()">✨ Enhance Karo</button>
+    <button class="btn" id="ei-btn" style="background:linear-gradient(135deg,var(--accent),var(--accent2))" onclick="submitEnhanceImage()">✨ Enhance Karo</button>
   </div>
 </div>
 
@@ -311,202 +304,227 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <script>
 const tg = window.Telegram.WebApp;
 tg.expand();
-tg.setHeaderColor('#0f0f1a');
-tg.setBackgroundColor('#0f0f1a');
-
 const initData = tg.initData || '';
 const user = tg.initDataUnsafe?.user;
 document.getElementById('user-name').textContent = user
-  ? `👤 ${user.first_name}${user.last_name ? ' '+user.last_name : ''}`
+  ? `👤 ${user.first_name}${user.last_name?' '+user.last_name:''}`
   : '👤 Guest';
 
-// ── State ──
 const state = {
-  subFile: null, evFile: null, eiFile: null,
-  lang: 'hi', langLabel: 'Hindi',
-  style: 'netflix', translate: 'original',
-  font: 'Noto Sans Devanagari', color: '&H00FFFFFF',
-  quality: '1080p30', emode: '4x'
+  subFile:null, evFile:null, eiFile:null,
+  lang:'hi', langLabel:'Hindi', style:'netflix',
+  translate:'original', font:'Noto Sans Devanagari',
+  color:'&H00FFFFFF', quality:'1080p30', emode:'4x'
 };
 
-// ── Pages ──
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const tabs = ['home','search','subtitle','enhance-video','enhance-image'];
-  const idx = tabs.indexOf(id);
-  document.querySelectorAll('.tab')[idx]?.classList.add('active');
-}
-
-// ── Toast ──
-function toast(msg, ms=3000) {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), ms);
-}
-
-// ── Option picker ──
-function pickOpt(el, groupId) {
-  document.querySelectorAll('#'+groupId+' .opt-btn').forEach(b => b.classList.remove('sel'));
-  el.classList.add('sel');
-  const val = el.dataset.val;
-  const label = el.dataset.label || el.textContent.trim().replace(/^[^\w]+/,'');
-  if (groupId === 'opt-lang') { state.lang = val; state.langLabel = label; }
-  if (groupId === 'opt-style') state.style = val;
-  if (groupId === 'opt-translate') state.translate = val;
-  if (groupId === 'opt-font') state.font = val;
-  if (groupId === 'opt-quality') state.quality = val;
-  if (groupId === 'opt-emode') state.emode = val;
-}
-
-function pickColor(el) {
-  document.querySelectorAll('#color-swatches .color-swatch').forEach(s => s.classList.remove('sel'));
-  el.classList.add('sel');
-  state.color = el.dataset.val;
-}
-
-// ── File handling ──
-function setFile(input, zoneId, fnameId) {
-  const f = input.files[0];
-  if (!f) return;
-  if (zoneId === 'sub-zone') state.subFile = f;
-  if (zoneId === 'ev-zone') state.evFile = f;
-  if (zoneId === 'ei-zone') state.eiFile = f;
-  const mb = (f.size / 1024 / 1024).toFixed(1);
-  document.getElementById(fnameId).textContent = `✅ ${f.name} (${mb} MB)`;
-  document.getElementById(zoneId).style.borderColor = 'var(--green)';
-}
-
-function handleDrop(ev, fileId, zoneId, fnameId) {
-  ev.preventDefault();
-  document.getElementById(zoneId).classList.remove('drag');
-  const dt = ev.dataTransfer;
-  if (dt.files.length) {
-    const fakeInput = {files: dt.files};
-    setFile(fakeInput, zoneId, fnameId);
-  }
-}
-
-// ── XHR with progress ──
-function uploadWithProgress(url, formData, progressWrapId, fillId, pctId, textId) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const wrap = document.getElementById(progressWrapId);
-    const fill = document.getElementById(fillId);
-    const pct  = document.getElementById(pctId);
-    const txt  = textId ? document.getElementById(textId) : null;
-    wrap.classList.add('show');
-    if (txt) txt.textContent = 'Uploading...';
-    xhr.upload.onprogress = e => {
-      if (e.lengthComputable) {
-        const p = Math.round(e.loaded / e.total * 100);
-        fill.style.width = p + '%';
-        pct.textContent = p + '%';
-        if (txt) txt.textContent = p < 100 ? 'Uploading...' : 'Processing...';
-      }
-    };
-    xhr.onload = () => {
-      if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
-      else reject(new Error(xhr.responseText));
-    };
-    xhr.onerror = () => reject(new Error('Network error'));
-    xhr.open('POST', url);
-    xhr.send(formData);
+  ['home','search','subtitle','enhance-video','enhance-image'].forEach((n,i)=>{
+    if(n===id) document.querySelectorAll('.tab')[i]?.classList.add('active');
   });
+}
+
+function toast(msg,ms=3000){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),ms);
+}
+
+function pickOpt(el,groupId){
+  document.querySelectorAll('#'+groupId+' .opt-btn').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel');
+  const val=el.dataset.val, label=el.dataset.label||el.textContent.trim().replace(/^[^\w]+/,'');
+  if(groupId==='opt-lang'){state.lang=val;state.langLabel=label;}
+  if(groupId==='opt-style') state.style=val;
+  if(groupId==='opt-translate') state.translate=val;
+  if(groupId==='opt-font') state.font=val;
+  if(groupId==='opt-quality') state.quality=val;
+  if(groupId==='opt-emode') state.emode=val;
+}
+
+function pickColor(el){
+  document.querySelectorAll('#color-swatches .color-swatch').forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel'); state.color=el.dataset.val;
+}
+
+function setFile(input,zoneId,fnameId,key){
+  const f=input.files[0]; if(!f) return;
+  state[key+'File']=f;
+  const mb=(f.size/1024/1024).toFixed(1);
+  document.getElementById(fnameId).textContent=`✅ ${f.name} (${mb} MB)`;
+  document.getElementById(zoneId).style.borderColor='var(--green)';
 }
 
 // ── Movie Search ──
 let searchTimer;
-function doSearch() {
+function doSearch(){
   clearTimeout(searchTimer);
-  const q = document.getElementById('search-q').value.trim();
-  if (q.length < 2) { document.getElementById('search-results').innerHTML = '<div class="empty">🔍 Kuch aur likho</div>'; return; }
-  document.getElementById('search-results').innerHTML = '<div class="empty">⏳ Searching...</div>';
-  searchTimer = setTimeout(async () => {
-    try {
-      const res = await fetch('/api/search?q=' + encodeURIComponent(q));
-      const data = await res.json();
-      if (!data.length) { document.getElementById('search-results').innerHTML = '<div class="empty">😕 Koi result nahi mila</div>'; return; }
-      document.getElementById('search-results').innerHTML = data.map(m =>
-        `<div class="movie-item" onclick="openMovie('${encodeURIComponent(m.link || '')}','${encodeURIComponent(m.name || '')}')">
-          <div class="movie-icon">🎬</div>
+  const q=document.getElementById('search-q').value.trim();
+  if(q.length<2){document.getElementById('search-results').innerHTML='<div class="empty">Kuch aur likho</div>';return;}
+  document.getElementById('search-results').innerHTML='<div class="empty">⏳ Searching...</div>';
+  searchTimer=setTimeout(async()=>{
+    try{
+      const res=await fetch('/api/search?q='+encodeURIComponent(q));
+      const data=await res.json();
+      if(!data.length){document.getElementById('search-results').innerHTML='<div class="empty">😕 Koi result nahi mila</div>';return;}
+      document.getElementById('search-results').innerHTML=data.map(m=>
+        `<div class="movie-item" onclick="tg.openLink('${m.link||''}')">
+          <div style="font-size:20px">🎬</div>
           <div><div class="movie-name">${m.name||'Unknown'}</div><div class="movie-link">Tap to open ↗</div></div>
         </div>`
       ).join('');
-    } catch(e) { document.getElementById('search-results').innerHTML = '<div class="empty">❌ Error: '+e.message+'</div>'; }
-  }, 350);
+    }catch(e){document.getElementById('search-results').innerHTML='<div class="empty">❌ '+e.message+'</div>';}
+  },350);
 }
 
-function openMovie(encodedLink, encodedName) {
-  const link = decodeURIComponent(encodedLink);
-  const name = decodeURIComponent(encodedName);
-  if (!link) return;
-  tg.openLink(link);
+// ── Real-time Job Polling ──
+function fmtEta(sec){
+  if(sec<=0) return 'Almost done!';
+  if(sec<60) return sec+'s';
+  return Math.ceil(sec/60)+'m '+('0'+Math.floor(sec%60)).slice(-2)+'s';
+}
+
+function startPolling(jobId, prefix){
+  const panel   = document.getElementById(prefix+'-job-panel');
+  const stepEl  = document.getElementById(prefix+'-step');
+  const fillEl  = document.getElementById(prefix+'-fill');
+  const pctEl   = document.getElementById(prefix+'-pct');
+  const etaEl   = document.getElementById(prefix+'-eta');
+  const doneEl  = document.getElementById(prefix+'-done');
+  panel.classList.add('show');
+  doneEl.style.display='none';
+
+  const interval=setInterval(async()=>{
+    try{
+      const res=await fetch('/api/status/'+jobId);
+      if(!res.ok){clearInterval(interval);return;}
+      const d=await res.json();
+      if(d.error && d.error.includes('not found')){clearInterval(interval);return;}
+
+      stepEl.textContent = d.step || 'Processing...';
+      fillEl.style.width = (d.progress||0)+'%';
+      pctEl.textContent  = (d.progress||0)+'%';
+      etaEl.textContent  = 'ETA: '+fmtEta(d.eta_sec||0);
+
+      if(d.done){
+        clearInterval(interval);
+        fillEl.style.width='100%';
+        pctEl.textContent='100%';
+        etaEl.textContent='Done!';
+        if(d.error){
+          stepEl.textContent='❌ Error occurred';
+          doneEl.className='job-done error';
+          doneEl.textContent='❌ Error: '+d.error;
+        }else{
+          stepEl.textContent='✅ Complete!';
+          doneEl.className='job-done success';
+          doneEl.textContent='✅ Video bot pe bhej di gayi!';
+        }
+        doneEl.style.display='block';
+      }
+    }catch(e){/* ignore poll errors */}
+  },2000);
+}
+
+// ── XHR upload with progress ──
+function uploadXHR(url, fd, upWrapId, upFillId, upPctId){
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    const wrap=document.getElementById(upWrapId);
+    const fill=document.getElementById(upFillId);
+    const pct =document.getElementById(upPctId);
+    wrap.classList.add('show');
+    xhr.upload.onprogress=e=>{
+      if(e.lengthComputable){
+        const p=Math.round(e.loaded/e.total*100);
+        fill.style.width=p+'%'; pct.textContent=p+'%';
+      }
+    };
+    xhr.onload=()=>{
+      if(xhr.status===200) resolve(JSON.parse(xhr.responseText));
+      else reject(new Error(xhr.responseText||'Server error'));
+    };
+    xhr.onerror=()=>reject(new Error('Network error'));
+    xhr.open('POST',url); xhr.send(fd);
+  });
 }
 
 // ── Submit Subtitle ──
-async function submitSubtitle() {
-  if (!state.subFile) { toast('⚠️ Pehle video select karo'); return; }
-  if (!initData && !user) { toast('⚠️ Telegram se open karo'); return; }
-  const btn = document.getElementById('sub-btn');
-  btn.disabled = true; btn.textContent = '⏳ Uploading...';
-  try {
-    const fd = new FormData();
-    fd.append('video', state.subFile);
-    fd.append('init_data', initData);
-    fd.append('language', state.lang);
-    fd.append('lang_label', state.langLabel);
-    fd.append('style', state.style);
-    fd.append('translate', state.translate);
-    fd.append('font', state.font);
-    fd.append('color', state.color);
-    const res = await uploadWithProgress('/api/subtitle', fd, 'sub-progress', 'sub-prog-fill', 'sub-prog-pct', 'sub-prog-text');
-    toast('✅ '+res.message, 4000);
-    btn.textContent = '✅ Upload Ho Gayi!';
-  } catch(e) {
-    toast('❌ Error: '+e.message);
-    btn.disabled = false; btn.textContent = '🚀 Subtitle Add Karo';
+async function submitSubtitle(){
+  if(!state.subFile){toast('⚠️ Pehle video select karo');return;}
+  const btn=document.getElementById('sub-btn');
+  btn.disabled=true; btn.textContent='⬆️ Uploading...';
+  try{
+    const fd=new FormData();
+    fd.append('video',state.subFile);
+    fd.append('init_data',initData);
+    fd.append('language',state.lang);
+    fd.append('lang_label',state.langLabel);
+    fd.append('style',state.style);
+    fd.append('translate',state.translate);
+    fd.append('font',state.font);
+    fd.append('color',state.color);
+    const res=await uploadXHR('/api/subtitle',fd,'sub-up-progress','sub-up-fill','sub-up-pct');
+    if(res.ok){
+      document.getElementById('sub-up-progress').classList.remove('show');
+      btn.textContent='✅ Uploaded! Processing...';
+      toast('✅ Upload complete! Processing shuru...',3000);
+      if(res.job_id) startPolling(res.job_id,'sub');
+    }else{
+      toast('❌ '+res.error); btn.disabled=false; btn.textContent='🚀 Subtitle Add Karo';
+    }
+  }catch(e){
+    toast('❌ '+e.message); btn.disabled=false; btn.textContent='🚀 Subtitle Add Karo';
   }
 }
 
 // ── Submit Video Enhance ──
-async function submitEnhanceVideo() {
-  if (!state.evFile) { toast('⚠️ Pehle video select karo'); return; }
-  if (!initData && !user) { toast('⚠️ Telegram se open karo'); return; }
-  const btn = document.getElementById('ev-btn');
-  btn.disabled = true; btn.textContent = '⏳ Uploading...';
-  try {
-    const fd = new FormData();
-    fd.append('video', state.evFile);
-    fd.append('init_data', initData);
-    fd.append('quality', state.quality);
-    const res = await uploadWithProgress('/api/enhance-video', fd, 'ev-progress', 'ev-prog-fill', 'ev-prog-pct', 'ev-prog-text');
-    toast('✅ '+res.message, 4000);
-    btn.textContent = '✅ Upload Ho Gayi!';
-  } catch(e) {
-    toast('❌ Error: '+e.message);
-    btn.disabled = false; btn.textContent = '⚡ Enhance Karo';
+async function submitEnhanceVideo(){
+  if(!state.evFile){toast('⚠️ Pehle video select karo');return;}
+  const btn=document.getElementById('ev-btn');
+  btn.disabled=true; btn.textContent='⬆️ Uploading...';
+  try{
+    const fd=new FormData();
+    fd.append('video',state.evFile);
+    fd.append('init_data',initData);
+    fd.append('quality',state.quality);
+    const res=await uploadXHR('/api/enhance-video',fd,'ev-up-progress','ev-up-fill','ev-up-pct');
+    if(res.ok){
+      document.getElementById('ev-up-progress').classList.remove('show');
+      btn.textContent='✅ Uploaded! Processing...';
+      toast('✅ Upload complete! Processing shuru...',3000);
+      if(res.job_id) startPolling(res.job_id,'ev');
+    }else{
+      toast('❌ '+res.error); btn.disabled=false; btn.textContent='⚡ Enhance Karo';
+    }
+  }catch(e){
+    toast('❌ '+e.message); btn.disabled=false; btn.textContent='⚡ Enhance Karo';
   }
 }
 
 // ── Submit Image Enhance ──
-async function submitEnhanceImage() {
-  if (!state.eiFile) { toast('⚠️ Pehle image select karo'); return; }
-  if (!initData && !user) { toast('⚠️ Telegram se open karo'); return; }
-  const btn = document.getElementById('ei-btn');
-  btn.disabled = true; btn.textContent = '⏳ Uploading...';
-  try {
-    const fd = new FormData();
-    fd.append('image', state.eiFile);
-    fd.append('init_data', initData);
-    fd.append('mode', state.emode);
-    const res = await uploadWithProgress('/api/enhance-image', fd, 'ei-progress', 'ei-prog-fill', 'ei-prog-pct', null);
-    toast('✅ '+res.message, 4000);
-    btn.textContent = '✅ Upload Ho Gayi!';
-  } catch(e) {
-    toast('❌ Error: '+e.message);
-    btn.disabled = false; btn.textContent = '✨ Enhance Karo';
+async function submitEnhanceImage(){
+  if(!state.eiFile){toast('⚠️ Pehle image select karo');return;}
+  const btn=document.getElementById('ei-btn');
+  btn.disabled=true; btn.textContent='⬆️ Uploading...';
+  try{
+    const fd=new FormData();
+    fd.append('image',state.eiFile);
+    fd.append('init_data',initData);
+    fd.append('mode',state.emode);
+    const res=await uploadXHR('/api/enhance-image',fd,'ei-up-progress','ei-up-fill','ei-up-pct');
+    if(res.ok){
+      document.getElementById('ei-up-progress').classList.remove('show');
+      btn.textContent='✅ Uploaded! Processing...';
+      toast('✅ Upload complete! Processing shuru...',3000);
+      if(res.job_id) startPolling(res.job_id,'ei');
+    }else{
+      toast('❌ '+res.error); btn.disabled=false; btn.textContent='✨ Enhance Karo';
+    }
+  }catch(e){
+    toast('❌ '+e.message); btn.disabled=false; btn.textContent='✨ Enhance Karo';
   }
 }
 </script>

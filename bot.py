@@ -1296,20 +1296,22 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
         tr_label = TRANSLATE_MODES.get(translate_mode, translate_mode)
         preview_text = ' '.join(s['text'] for s in corrected_segments)[:300].strip()
         dots = '...' if len(' '.join(s['text'] for s in corrected_segments)) > 300 else ''
-        with open(send_path, 'rb') as vid:
-            bot.send_video(
-                chat_id,
-                vid,
-                caption=(
-                    f"✅ <b>Done! Subtitles ready!</b>\n\n"
-                    f"🎨 Style: <b>{style_label}</b>\n"
-                    f"🌐 Mode: <b>{tr_label}</b>\n"
-                    f"🗣️ Language: <b>{lang_label}</b>\n\n"
-                    f"📝 <b>Preview:</b>\n<i>{preview_text}{dots}</i>"
-                ),
-                parse_mode="HTML",
-                supports_streaming=True
-            )
+        # Read into bytes first to avoid "read of closed file" on large uploads
+        with open(send_path, 'rb') as f:
+            video_bytes = f.read()
+        bot.send_video(
+            chat_id,
+            ('output_subtitled.mp4', video_bytes),
+            caption=(
+                f"✅ <b>Done! Subtitles ready!</b>\n\n"
+                f"🎨 Style: <b>{style_label}</b>\n"
+                f"🌐 Mode: <b>{tr_label}</b>\n"
+                f"🗣️ Language: <b>{lang_label}</b>\n\n"
+                f"📝 <b>Preview:</b>\n<i>{preview_text}{dots}</i>"
+            ),
+            parse_mode="HTML",
+            supports_streaming=True
+        )
 
         bot.delete_message(chat_id, status_msg.message_id)
 
@@ -1539,19 +1541,21 @@ def process_video_enhance(bot, message, file_id, qual_key="1080p30"):
         # Compress if output exceeds Telegram's 50MB limit
         send_path_enh = compress_for_telegram(output_path)
         output_size = os.path.getsize(send_path_enh) // (1024 * 1024)
-        with open(send_path_enh, "rb") as vf_out:
-            bot.send_video(
-                chat_id, vf_out,
-                caption=(
-                    f"✅ <b>AI Enhancement Done!</b>\n\n"
-                    f"🎯 Quality: <b>{label}</b>\n"
-                    f"📐 Resolution: <b>{w}x{h}</b>\n"
-                    f"🎞️ FPS: <b>{fps}fps</b>\n"
-                    f"✨ Filters: Lanczos + Sharpen + Denoise + Color\n"
-                    f"📦 Output size: <b>{output_size}MB</b>"
-                ),
-                parse_mode="HTML", supports_streaming=True
-            )
+        # Read into bytes first to avoid "read of closed file" on large uploads
+        with open(send_path_enh, "rb") as f:
+            enh_bytes = f.read()
+        bot.send_video(
+            chat_id, ('enhanced.mp4', enh_bytes),
+            caption=(
+                f"✅ <b>AI Enhancement Done!</b>\n\n"
+                f"🎯 Quality: <b>{label}</b>\n"
+                f"📐 Resolution: <b>{w}x{h}</b>\n"
+                f"🎞️ FPS: <b>{fps}fps</b>\n"
+                f"✨ Filters: Lanczos + Sharpen + Denoise + Color\n"
+                f"📦 Output size: <b>{output_size}MB</b>"
+            ),
+            parse_mode="HTML", supports_streaming=True
+        )
         bot.delete_message(chat_id, status_msg.message_id)
 
     except subprocess.CalledProcessError as e:
