@@ -12,10 +12,14 @@ _jobs = {}
 
 # ─── Credit System ────────────────────────────────────────
 USERS_FILE      = 'users.json'
-CREDITS_PER_AD  = 5          # credits per ad watched
+CREDITS_PER_AD  = 3          # credits per ad watched
 AD_WATCH_SECS   = 30         # minimum seconds user must watch
 AD_SMARTLINK    = os.getenv('AD_SMARTLINK', 'https://link.stonksmonkey.com/BfRJgT')
 RESULTS_DIR     = 'results'
+DAILY_BONUS     = 2          # free credits every 24h
+SUBTITLE_COST   = 3          # credits to add subtitles
+VIDEO_COST      = 10         # credits to enhance video
+IMAGE_COST      = 5          # credits to enhance image
 _ad_tokens      = {}         # token -> {user_id, started_at}
 _users_lock     = threading.Lock()
 
@@ -43,6 +47,64 @@ def _add_credits(user_id, amount):
         users[uid]['credits'] = users[uid].get('credits', 0) + amount
         _save_users(users)
         return users[uid]['credits']
+
+def _deduct_credits(user_id, amount):
+    """Deducts credits. Raises ValueError if balance insufficient."""
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        if uid not in users:
+            users[uid] = {'credits': 0}
+        current = users[uid].get('credits', 0)
+        if current < amount:
+            raise ValueError(f'Kam credits hain! Tumhare paas {current} hain, {amount} chahiye.')
+        users[uid]['credits'] = current - amount
+        _save_users(users)
+        return users[uid]['credits']
+
+def _add_history(user_id, job_id, task_type, cost, desc=''):
+    """Adds a task to user history (max 3 entries, oldest removed)."""
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        if uid not in users:
+            users[uid] = {'credits': 0}
+        history = users[uid].get('history', [])
+        history.append({'job_id': job_id, 'type': task_type, 'desc': desc,
+                        'cost': cost, 'status': 'processing',
+                        'created_at': int(time.time())})
+        users[uid]['history'] = history[-3:]   # keep last 3 only
+        _save_users(users)
+
+def _update_history_status(user_id, job_id, status):
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        if uid in users:
+            for item in users[uid].get('history', []):
+                if item.get('job_id') == job_id:
+                    item['status'] = status
+                    break
+            _save_users(users)
+
+def _check_and_give_daily_bonus(user_id):
+    """Returns {given, amount, credits, next_in} dict."""
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        if uid not in users:
+            users[uid] = {'credits': 0}
+        now = time.time()
+        last_bonus = users[uid].get('last_bonus', 0)
+        if now - last_bonus >= 24 * 3600:
+            users[uid]['credits'] = users[uid].get('credits', 0) + DAILY_BONUS
+            users[uid]['last_bonus'] = now
+            _save_users(users)
+            return {'given': True, 'amount': DAILY_BONUS,
+                    'credits': users[uid]['credits'], 'next_in': 24 * 3600}
+        next_in = int(24 * 3600 - (now - last_bonus))
+        return {'given': False, 'amount': 0,
+                'credits': users[uid].get('credits', 0), 'next_in': next_in}
 
 def _parse_user_from_form(req):
     try:
@@ -96,6 +158,10 @@ def _finish_job(jid, error=None, output_path=None):
                 _jobs[jid]['result_ext'] = ext
             except Exception as e:
                 logging.error(f'Result copy error: {e}')
+        # Update history status
+        uid = _jobs[jid].get('user_id')
+        if uid:
+            _update_history_status(uid, jid, 'error' if error else 'done')
 
 # ─── Routes ──────────────────────────────────────────────
 
@@ -191,6 +257,32 @@ def api_ad_complete():
     new_balance = _add_credits(user_id, CREDITS_PER_AD)
     return jsonify({'ok': True, 'credits_added': CREDITS_PER_AD, 'total_credits': new_balance})
 
+@app.route('/api/daily-bonus', methods=['POST'])
+def api_daily_bonus():
+    user = _parse_user_from_form(request)
+    user_id = user.get('id')
+    if not user_id:
+        return jsonify({'ok': False, 'error': 'Not identified'}), 400
+    result = _check_and_give_daily_bonus(user_id)
+    return jsonify({'ok': True, **result})
+
+@app.route('/api/history')
+def api_history():
+    raw = request.args.get('init_data', '')
+    params = dict(urllib.parse.parse_qsl(raw))
+    try:
+        user = json.loads(params.get('user', '{}'))
+        user_id = user.get('id')
+    except Exception:
+        user_id = None
+    if not user_id:
+        return jsonify({'ok': False, 'error': 'Not identified'}), 400
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        history = users.get(uid, {}).get('history', [])
+    return jsonify({'ok': True, 'history': list(reversed(history))})
+
 @app.route('/api/subtitle', methods=['POST'])
 def api_subtitle():
     chat_id = _get_chat_id(request)
@@ -223,9 +315,18 @@ def api_subtitle():
     est_duration = file_size_mb * 5
     eta_total = int(est_duration * 3 + 60)  # whisper + burn overhead
 
+    # ── Check & deduct credits ──
+    try:
+        _deduct_credits(chat_id, SUBTITLE_COST)
+    except ValueError as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return jsonify({'ok': False, 'error': str(e), 'need_credits': SUBTITLE_COST}), 400
+
     jid = str(uuid.uuid4())
     _jobs[jid] = {'step': '⏳ Queued', 'progress': 0, 'eta_sec': eta_total,
-                  'done': False, 'error': None, 'started_at': time.time()}
+                  'done': False, 'error': None, 'started_at': time.time(),
+                  'user_id': str(chat_id)}
+    _add_history(chat_id, jid, 'subtitle', SUBTITLE_COST, f'{style_key} • {lang_label}')
 
     def process():
         audio_path  = os.path.join(tmp_dir, 'audio.wav')
@@ -356,9 +457,18 @@ def api_enhance_video():
     file_size_mb = os.path.getsize(input_path) / (1024 * 1024)
     eta_total = int(file_size_mb * 4 + 30)
 
+    # ── Check & deduct credits ──
+    try:
+        _deduct_credits(chat_id, VIDEO_COST)
+    except ValueError as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return jsonify({'ok': False, 'error': str(e), 'need_credits': VIDEO_COST}), 400
+
     jid = str(uuid.uuid4())
     _jobs[jid] = {'step': '⏳ Queued', 'progress': 0, 'eta_sec': eta_total,
-                  'done': False, 'error': None, 'started_at': time.time()}
+                  'done': False, 'error': None, 'started_at': time.time(),
+                  'user_id': str(chat_id)}
+    _add_history(chat_id, jid, 'video', VIDEO_COST, quality)
 
     def process():
         output_path = os.path.join(tmp_dir, 'enhanced.mp4')
@@ -415,9 +525,18 @@ def api_enhance_image():
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return jsonify({'ok': False, 'error': f'Save failed: {e}'}), 500
 
+    # ── Check & deduct credits ──
+    try:
+        _deduct_credits(chat_id, IMAGE_COST)
+    except ValueError as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return jsonify({'ok': False, 'error': str(e), 'need_credits': IMAGE_COST}), 400
+
     jid = str(uuid.uuid4())
     _jobs[jid] = {'step': '⏳ Queued', 'progress': 0, 'eta_sec': 120,
-                  'done': False, 'error': None, 'started_at': time.time()}
+                  'done': False, 'error': None, 'started_at': time.time(),
+                  'user_id': str(chat_id)}
+    _add_history(chat_id, jid, 'image', IMAGE_COST, mode)
 
     def process():
         import requests as req_lib

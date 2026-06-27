@@ -157,6 +157,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="tab" onclick="showPage('subtitle')">🎬 Subtitles</div>
   <div class="tab" onclick="showPage('enhance-video')">⚡ Video AI</div>
   <div class="tab" onclick="showPage('enhance-image')">🖼️ Image AI</div>
+  <div class="tab" onclick="showPage('history');loadHistory()">📋 History</div>
 </div>
 
 <!-- HOME -->
@@ -348,6 +349,17 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   </div>
 </div>
 
+<!-- HISTORY PAGE -->
+<div class="page" id="page-history">
+  <div style="margin-top:4px">
+    <div class="card" style="border-color:#5b6cf930;margin-bottom:12px">
+      <div class="card-title">📋 Recent Tasks <span style="font-size:11px;color:var(--sub);font-weight:400">(last 3)</span></div>
+      <div style="font-size:12px;color:var(--sub);margin-top:2px">Purana task automatically remove ho jaata hai</div>
+    </div>
+    <div id="history-list"><div class="empty">⏳ Loading...</div></div>
+  </div>
+</div>
+
 <!-- Ad Modal -->
 <div class="modal-overlay" id="ad-modal">
   <div class="modal-box">
@@ -404,8 +416,62 @@ async function loadCredits(){
 }
 loadCredits();
 
+// ── Daily Bonus (called on every app open) ──
+async function claimDailyBonus(){
+  if(!user) return;
+  try{
+    const fd = new FormData(); fd.append('init_data', initData);
+    const res = await fetch('/api/daily-bonus', {method:'POST', body:fd});
+    const d   = await res.json();
+    if(d.ok && d.given){
+      updateCreditDisplay(d.credits);
+      toast(`🎁 Daily Bonus! +${d.amount} Credits mile! (${d.credits} total)`, 4000);
+    } else if(d.ok) {
+      updateCreditDisplay(d.credits);
+    }
+  }catch(e){}
+}
+claimDailyBonus();
+
 function updateCreditDisplay(n){
   document.getElementById('credit-display').textContent = n;
+}
+
+// ── History ──
+const HISTORY_ICONS = {subtitle:'📝', video:'⚡', image:'✨'};
+const HISTORY_NAMES = {subtitle:'AI Subtitle', video:'Video Enhance', image:'Image Enhance'};
+const STATUS_MAP    = {done:'✅', error:'❌', processing:'⏳'};
+
+function fmtTs(ts){
+  const d = new Date(ts*1000);
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) + ' ' +
+         d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+}
+
+async function loadHistory(){
+  const el = document.getElementById('history-list');
+  el.innerHTML = '<div class="empty">⏳ Loading...</div>';
+  try{
+    const res = await fetch('/api/history?init_data='+encodeURIComponent(initData));
+    const d   = await res.json();
+    if(!d.ok || !d.history.length){
+      el.innerHTML='<div class="empty">📭 Abhi tak koi task nahi hua</div>';
+      return;
+    }
+    el.innerHTML = d.history.map(h=>`
+      <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;margin-bottom:10px">
+        <div style="font-size:28px;flex-shrink:0">${HISTORY_ICONS[h.type]||'📄'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700">${HISTORY_NAMES[h.type]||h.type}</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.desc||''}</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">${fmtTs(h.created_at)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:13px;font-weight:700;color:#e74c3c">-${h.cost} 💰</div>
+          <div style="font-size:13px;margin-top:4px">${STATUS_MAP[h.status]||'⏳'} ${h.status}</div>
+        </div>
+      </div>`).join('');
+  }catch(e){ el.innerHTML='<div class="empty">❌ Load nahi ho saka</div>'; }
 }
 
 // ── Ad Modal ──
@@ -474,7 +540,7 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  ['home','search','subtitle','enhance-video','enhance-image'].forEach((n,i)=>{
+  ['home','search','subtitle','enhance-video','enhance-image','history'].forEach((n,i)=>{
     if(n===id) document.querySelectorAll('.tab')[i]?.classList.add('active');
   });
 }
@@ -636,10 +702,14 @@ async function submitSubtitle(){
     if(res.ok){
       document.getElementById('sub-up-progress').classList.remove('show');
       btn.textContent='✅ Uploaded! Processing...';
-      toast('✅ Upload complete! Processing shuru...',3000);
+      toast('✅ Upload complete! -3 💰 Credits kate. Processing shuru...',3500);
+      loadCredits();
       if(res.job_id) startPolling(res.job_id,'sub');
     }else{
-      toast('❌ '+res.error); btn.disabled=false; btn.textContent='🚀 Subtitle Add Karo';
+      const msg = res.error || 'Error';
+      if(res.need_credits) toast(`❌ ${msg} — Ad dekho ya daily bonus lo!`, 5000);
+      else toast('❌ '+msg);
+      btn.disabled=false; btn.textContent='🚀 Subtitle Add Karo (3 💰)';
     }
   }catch(e){
     toast('❌ '+e.message); btn.disabled=false; btn.textContent='🚀 Subtitle Add Karo';
@@ -660,10 +730,14 @@ async function submitEnhanceVideo(){
     if(res.ok){
       document.getElementById('ev-up-progress').classList.remove('show');
       btn.textContent='✅ Uploaded! Processing...';
-      toast('✅ Upload complete! Processing shuru...',3000);
+      toast('✅ Upload complete! -10 💰 Credits kate. Processing shuru...',3500);
+      loadCredits();
       if(res.job_id) startPolling(res.job_id,'ev');
     }else{
-      toast('❌ '+res.error); btn.disabled=false; btn.textContent='⚡ Enhance Karo';
+      const msg = res.error || 'Error';
+      if(res.need_credits) toast(`❌ ${msg} — Ad dekho ya daily bonus lo!`, 5000);
+      else toast('❌ '+msg);
+      btn.disabled=false; btn.textContent='⚡ Enhance Karo (10 💰)';
     }
   }catch(e){
     toast('❌ '+e.message); btn.disabled=false; btn.textContent='⚡ Enhance Karo';
@@ -684,10 +758,14 @@ async function submitEnhanceImage(){
     if(res.ok){
       document.getElementById('ei-up-progress').classList.remove('show');
       btn.textContent='✅ Uploaded! Processing...';
-      toast('✅ Upload complete! Processing shuru...',3000);
+      toast('✅ Upload complete! -5 💰 Credits kate. Processing shuru...',3500);
+      loadCredits();
       if(res.job_id) startPolling(res.job_id,'ei');
     }else{
-      toast('❌ '+res.error); btn.disabled=false; btn.textContent='✨ Enhance Karo';
+      const msg = res.error || 'Error';
+      if(res.need_credits) toast(`❌ ${msg} — Ad dekho ya daily bonus lo!`, 5000);
+      else toast('❌ '+msg);
+      btn.disabled=false; btn.textContent='✨ Enhance Karo (5 💰)';
     }
   }catch(e){
     toast('❌ '+e.message); btn.disabled=false; btn.textContent='✨ Enhance Karo';
