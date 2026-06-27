@@ -1815,6 +1815,26 @@ def force_take_polling_control():
 
 if __name__ == "__main__":
     print("🤖 SMART Bot started (Psych System Integrated)")
+    # Start Mini App web server
+    import webapp
+    webapp.init(bot, {
+        'gen_ass':         generate_ass_styled,
+        'gemini_correct':  gemini_correct_segments,
+        'gemini_translate':gemini_translate_segments,
+        'gemini_emojis':   gemini_add_emojis,
+        'compress':        compress_for_telegram,
+    })
+    webapp.start_thread()
+    # Set Mini App menu button
+    try:
+        webapp_url = f"https://{os.getenv('REPLIT_DEV_DOMAIN', '')}"
+        if os.getenv('REPLIT_DEV_DOMAIN'):
+            import telebot.types as tbtypes
+            bot.set_chat_menu_button(menu_button=tbtypes.MenuButtonWebApp(
+                type="web_app", text="🚀 Open App", web_app=tbtypes.WebAppInfo(url=webapp_url)))
+            print(f"✅ Mini App URL: {webapp_url}")
+    except Exception as e:
+        print(f"⚠️ Menu button set nahi hua: {e}")
     force_take_polling_control()
     while True:
         try:
