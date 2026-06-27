@@ -93,6 +93,40 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e1e3e;color:var(--text);border-radius:12px;padding:10px 20px;font-size:13px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;z-index:999;border:1px solid var(--accent);white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── Credits & Ad ── */
+.credit-pill{display:flex;align-items:center;gap:6px;margin-left:auto;background:#ffffff10;border:1px solid #ffffff18;border-radius:20px;padding:5px 12px;cursor:default}
+.credit-count{font-size:14px;font-weight:700;color:#f1c40f}
+.credit-label{font-size:11px;color:var(--sub)}
+.credit-plus{width:28px;height:28px;background:linear-gradient(135deg,#27ae60,#2ecc71);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;cursor:pointer;margin-left:4px;border:none;color:#fff;flex-shrink:0;transition:.15s}
+.credit-plus:active{transform:scale(.9)}
+
+/* Banner Ad */
+.banner-ad{display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(90deg,#1a1a2e,#16213e);border-bottom:1px solid #ffffff08;padding:7px 16px;font-size:12px;color:var(--sub);cursor:pointer;text-decoration:none;transition:.15s}
+.banner-ad:active{background:#1e1e3e}
+.banner-ad-badge{background:var(--accent);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700}
+
+/* Ad Modal */
+.modal-overlay{position:fixed;inset:0;background:#000000cc;z-index:1000;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.show{display:flex;animation:fadeIn .2s ease}
+.modal-box{background:var(--card);border-radius:24px 24px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;border-top:1px solid #ffffff12}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:4px}
+.modal-sub{font-size:13px;color:var(--sub);margin-bottom:20px;line-height:1.5}
+.modal-coin{font-size:48px;text-align:center;margin-bottom:8px}
+.modal-reward{text-align:center;font-size:22px;font-weight:700;color:#f1c40f;margin-bottom:20px}
+.timer-ring{text-align:center;margin-bottom:18px}
+.timer-text{font-size:28px;font-weight:700;color:var(--accent)}
+.timer-label{font-size:12px;color:var(--sub);margin-top:2px}
+.btn-ad{background:linear-gradient(135deg,#f39c12,#e67e22);color:#fff;border:none;border-radius:14px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;width:100%;margin-bottom:10px;transition:.15s}
+.btn-ad:active{transform:scale(.97)}
+.btn-ad:disabled{opacity:.4;pointer-events:none}
+.btn-cancel{background:transparent;color:var(--sub);border:1px solid #ffffff15;border-radius:14px;padding:12px;font-size:13px;font-weight:600;cursor:pointer;width:100%;transition:.15s}
+.btn-cancel:active{background:#ffffff10}
+
+/* Result download button */
+.btn-download{background:linear-gradient(135deg,var(--green),#2ecc71);color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:8px;transition:.15s;display:none}
+.btn-download.show{display:block}
+.btn-download:active{transform:scale(.97)}
 </style>
 </head>
 <body>
@@ -103,7 +137,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="header-title">SMART Bot</div>
     <div class="header-sub" id="user-name">Loading...</div>
   </div>
+  <div class="credit-pill">
+    <span class="credit-label">💰</span>
+    <span class="credit-count" id="credit-display">…</span>
+    <button class="credit-plus" onclick="openAdModal()" title="Ad dekhkar credits kamao">＋</button>
+  </div>
 </div>
+
+<!-- Banner Ad -->
+<a class="banner-ad" id="banner-ad-link" href="#" onclick="openAdModal();return false;">
+  <span>🎬 Credits kamao</span>
+  <span class="banner-ad-badge">+5 💰</span>
+  <span>Ad dekhkar earn karo →</span>
+</a>
 
 <div class="tabs">
   <div class="tab active" onclick="showPage('home')">🏠 Home</div>
@@ -214,6 +260,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="job-bar"><div class="job-fill" id="sub-fill"></div></div>
       <div class="job-pct" id="sub-pct">0%</div>
       <div class="job-done" id="sub-done" style="display:none"></div>
+      <button class="btn-download" id="sub-download" onclick="downloadResult('sub')">⬇️ Mini App se Download Karo</button>
     </div>
 
     <button class="btn" id="sub-btn" onclick="submitSubtitle()">🚀 Subtitle Add Karo</button>
@@ -254,6 +301,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="job-bar"><div class="job-fill" id="ev-fill"></div></div>
       <div class="job-pct" id="ev-pct">0%</div>
       <div class="job-done" id="ev-done" style="display:none"></div>
+      <button class="btn-download" id="ev-download" onclick="downloadResult('ev')">⬇️ Mini App se Download Karo</button>
     </div>
 
     <button class="btn" id="ev-btn" onclick="submitEnhanceVideo()">⚡ Enhance Karo</button>
@@ -293,9 +341,28 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="job-bar"><div class="job-fill" id="ei-fill"></div></div>
       <div class="job-pct" id="ei-pct">0%</div>
       <div class="job-done" id="ei-done" style="display:none"></div>
+      <button class="btn-download" id="ei-download" onclick="downloadResult('ei')">⬇️ Mini App se Download Karo</button>
     </div>
 
     <button class="btn" id="ei-btn" style="background:linear-gradient(135deg,var(--accent),var(--accent2))" onclick="submitEnhanceImage()">✨ Enhance Karo</button>
+  </div>
+</div>
+
+<!-- Ad Modal -->
+<div class="modal-overlay" id="ad-modal">
+  <div class="modal-box">
+    <div class="modal-coin">🪙</div>
+    <div class="modal-reward" id="ad-reward-text">+5 Credits Milenge!</div>
+    <div class="modal-title">Ad Dekhkar Kamao</div>
+    <div class="modal-sub">Ad poori dekhni hogi — beech mein band kiya toh credits nahi milenge.</div>
+    <div class="timer-ring" id="ad-timer-wrap" style="display:none">
+      <div class="timer-text" id="ad-timer">30</div>
+      <div class="timer-label">seconds baaki hain...</div>
+    </div>
+    <div id="ad-status-msg" style="text-align:center;font-size:13px;color:var(--sub);margin-bottom:16px;min-height:20px"></div>
+    <button class="btn-ad" id="btn-watch-ad" onclick="startWatchingAd()">📺 Ad Kholo &amp; Kamao</button>
+    <button class="btn-ad" id="btn-claim-credits" onclick="claimCredits()" style="background:linear-gradient(135deg,#27ae60,#2ecc71);display:none">💰 Credits Lo!</button>
+    <button class="btn-cancel" onclick="closeAdModal()">Baad mein</button>
   </div>
 </div>
 
@@ -314,8 +381,94 @@ const state = {
   subFile:null, evFile:null, eiFile:null,
   lang:'hi', langLabel:'Hindi', style:'netflix',
   translate:'original', font:'Noto Sans Devanagari',
-  color:'&H00FFFFFF', quality:'1080p30', emode:'4x'
+  color:'&H00FFFFFF', quality:'1080p30', emode:'4x',
+  // ad system
+  adToken: null, adTimerInterval: null, adSecsLeft: 30, adUrl: '#', jobUrls: {}
 };
+
+// ── Credits System ──
+async function loadCredits(){
+  if(!user) return document.getElementById('credit-display').textContent='--';
+  try{
+    const res = await fetch('/api/credits?init_data='+encodeURIComponent(initData));
+    const d   = await res.json();
+    if(d.ok){
+      document.getElementById('credit-display').textContent = d.credits;
+      state.adUrl          = d.ad_url;
+      state.adSecsLeft     = d.watch_secs;
+      state.creditsPerAd   = d.credits_per_ad;
+      document.getElementById('ad-reward-text').textContent = `+${d.credits_per_ad} Credits Milenge!`;
+      document.getElementById('ad-timer').textContent       = d.watch_secs;
+    }
+  }catch(e){ document.getElementById('credit-display').textContent='--'; }
+}
+loadCredits();
+
+function updateCreditDisplay(n){
+  document.getElementById('credit-display').textContent = n;
+}
+
+// ── Ad Modal ──
+function openAdModal(){
+  document.getElementById('ad-modal').classList.add('show');
+  document.getElementById('btn-watch-ad').style.display   = '';
+  document.getElementById('btn-claim-credits').style.display = 'none';
+  document.getElementById('ad-timer-wrap').style.display  = 'none';
+  document.getElementById('ad-status-msg').textContent    = '';
+  clearInterval(state.adTimerInterval);
+  state.adToken = null;
+}
+function closeAdModal(){
+  document.getElementById('ad-modal').classList.remove('show');
+  clearInterval(state.adTimerInterval);
+}
+
+async function startWatchingAd(){
+  const btn = document.getElementById('btn-watch-ad');
+  btn.disabled = true; btn.textContent = '⏳ Khul raha hai...';
+  try{
+    const fd = new FormData(); fd.append('init_data', initData);
+    const res = await fetch('/api/ad/start', {method:'POST', body:fd});
+    const d   = await res.json();
+    if(!d.ok){ toast('❌ '+d.error); btn.disabled=false; btn.textContent='📺 Ad Kholo & Kamao'; return; }
+    state.adToken    = d.token;
+    state.adSecsLeft = d.watch_secs;
+    // Open ad link in browser
+    tg.openLink(d.ad_url);
+    // Show countdown timer
+    document.getElementById('ad-timer-wrap').style.display = 'block';
+    document.getElementById('ad-timer').textContent        = state.adSecsLeft;
+    document.getElementById('ad-status-msg').textContent   = '⏳ Ad dekh rahe ho... timer chal raha hai';
+    btn.style.display = 'none';
+    state.adTimerInterval = setInterval(()=>{
+      state.adSecsLeft--;
+      document.getElementById('ad-timer').textContent = Math.max(0, state.adSecsLeft);
+      if(state.adSecsLeft <= 0){
+        clearInterval(state.adTimerInterval);
+        document.getElementById('ad-status-msg').textContent = '✅ Ab credits le sakte ho!';
+        document.getElementById('btn-claim-credits').style.display = '';
+      }
+    }, 1000);
+  }catch(e){ toast('❌ '+e.message); btn.disabled=false; btn.textContent='📺 Ad Kholo & Kamao'; }
+}
+
+async function claimCredits(){
+  const btn = document.getElementById('btn-claim-credits');
+  btn.disabled = true; btn.textContent = '⏳ Credits aa rahe hain...';
+  try{
+    const fd = new FormData(); fd.append('init_data', initData); fd.append('token', state.adToken||'');
+    const res = await fetch('/api/ad/complete', {method:'POST', body:fd});
+    const d   = await res.json();
+    if(d.ok){
+      updateCreditDisplay(d.total_credits);
+      toast(`🎉 +${d.credits_added} Credits mile! Total: ${d.total_credits} 💰`, 4000);
+      closeAdModal();
+    } else {
+      toast('❌ '+d.error, 4000);
+      btn.disabled = false; btn.textContent = '💰 Credits Lo!';
+    }
+  }catch(e){ toast('❌ '+e.message); btn.disabled=false; btn.textContent='💰 Credits Lo!'; }
+}
 
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -386,15 +539,23 @@ function fmtEta(sec){
   return Math.ceil(sec/60)+'m '+('0'+Math.floor(sec%60)).slice(-2)+'s';
 }
 
+function downloadResult(prefix){
+  const url = state.jobUrls[prefix];
+  if(!url){ toast('⚠️ File abhi available nahi hai'); return; }
+  tg.openLink(window.location.origin + url);
+}
+
 function startPolling(jobId, prefix){
-  const panel   = document.getElementById(prefix+'-job-panel');
-  const stepEl  = document.getElementById(prefix+'-step');
-  const fillEl  = document.getElementById(prefix+'-fill');
-  const pctEl   = document.getElementById(prefix+'-pct');
-  const etaEl   = document.getElementById(prefix+'-eta');
-  const doneEl  = document.getElementById(prefix+'-done');
+  const panel      = document.getElementById(prefix+'-job-panel');
+  const stepEl     = document.getElementById(prefix+'-step');
+  const fillEl     = document.getElementById(prefix+'-fill');
+  const pctEl      = document.getElementById(prefix+'-pct');
+  const etaEl      = document.getElementById(prefix+'-eta');
+  const doneEl     = document.getElementById(prefix+'-done');
+  const dlBtn      = document.getElementById(prefix+'-download');
   panel.classList.add('show');
   doneEl.style.display='none';
+  if(dlBtn) dlBtn.classList.remove('show');
 
   const interval=setInterval(async()=>{
     try{
@@ -420,7 +581,12 @@ function startPolling(jobId, prefix){
         }else{
           stepEl.textContent='✅ Complete!';
           doneEl.className='job-done success';
-          doneEl.textContent='✅ Video bot pe bhej di gayi!';
+          doneEl.textContent='✅ Bot pe bhi bhej di! Yahan se bhi download karo 👇';
+          // Show download button if result is available from mini app
+          if(d.result_url && dlBtn){
+            state.jobUrls[prefix] = d.result_url;
+            dlBtn.classList.add('show');
+          }
         }
         doneEl.style.display='block';
       }

@@ -1,5 +1,5 @@
-from flask import Flask, render_template, request, jsonify
-import os, json, threading, tempfile, subprocess, logging, urllib.parse, uuid, time, shutil
+from flask import Flask, render_template, request, jsonify, send_file
+import os, json, threading, tempfile, subprocess, logging, urllib.parse, uuid, time, shutil, secrets
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2 GB
@@ -7,13 +7,57 @@ app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2 GB
 _bot = None
 _fns = {}
 
-# job_id -> {step, progress, eta_sec, done, error, started_at}
+# job_id -> {step, progress, eta_sec, done, error, started_at, result_file}
 _jobs = {}
+
+# ─── Credit System ────────────────────────────────────────
+USERS_FILE      = 'users.json'
+CREDITS_PER_AD  = 5          # credits per ad watched
+AD_WATCH_SECS   = 30         # minimum seconds user must watch
+AD_SMARTLINK    = os.getenv('AD_SMARTLINK', 'https://link.stonksmonkey.com/BfRJgT')
+RESULTS_DIR     = 'results'
+_ad_tokens      = {}         # token -> {user_id, started_at}
+_users_lock     = threading.Lock()
+
+def _load_users():
+    try:
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_users(data):
+    with open(USERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def _get_credits(user_id):
+    with _users_lock:
+        return _load_users().get(str(user_id), {}).get('credits', 0)
+
+def _add_credits(user_id, amount):
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        if uid not in users:
+            users[uid] = {'credits': 0}
+        users[uid]['credits'] = users[uid].get('credits', 0) + amount
+        _save_users(users)
+        return users[uid]['credits']
+
+def _parse_user_from_form(req):
+    try:
+        raw = req.form.get('init_data', '') or req.args.get('init_data', '') or ''
+        params = dict(urllib.parse.parse_qsl(raw))
+        return json.loads(params.get('user', '{}'))
+    except Exception:
+        return {}
+# ──────────────────────────────────────────────────────────
 
 def init(bot_instance, functions):
     global _bot, _fns
     _bot = bot_instance
     _fns = functions
+    os.makedirs(RESULTS_DIR, exist_ok=True)
 
 def start_thread():
     t = threading.Thread(target=_run, daemon=True)
@@ -36,11 +80,22 @@ def _update_job(jid, step, progress, eta_sec):
     if jid in _jobs:
         _jobs[jid].update({'step': step, 'progress': progress, 'eta_sec': eta_sec})
 
-def _finish_job(jid, error=None):
+def _finish_job(jid, error=None, output_path=None):
     if jid in _jobs:
         _jobs[jid]['done'] = True
         _jobs[jid]['error'] = error
         _jobs[jid]['progress'] = 100 if not error else _jobs[jid].get('progress', 0)
+        # Save result file for mini app download
+        if output_path and not error and os.path.exists(output_path):
+            try:
+                os.makedirs(RESULTS_DIR, exist_ok=True)
+                ext = os.path.splitext(output_path)[1] or '.mp4'
+                dest = os.path.join(RESULTS_DIR, jid + ext)
+                shutil.copy2(output_path, dest)
+                _jobs[jid]['result_file'] = dest
+                _jobs[jid]['result_ext'] = ext
+            except Exception as e:
+                logging.error(f'Result copy error: {e}')
 
 # ─── Routes ──────────────────────────────────────────────
 
@@ -67,13 +122,74 @@ def api_status(job_id):
     if not job:
         return jsonify({'error': 'Job not found'}), 404
     elapsed = int(time.time() - job['started_at'])
+    result_url = f'/api/download/{job_id}' if job.get('result_file') else None
     return jsonify({
-        'step':     job.get('step', 'Starting...'),
-        'progress': job.get('progress', 0),
-        'eta_sec':  max(0, job.get('eta_sec', 0) - elapsed),
-        'done':     job.get('done', False),
-        'error':    job.get('error'),
+        'step':       job.get('step', 'Starting...'),
+        'progress':   job.get('progress', 0),
+        'eta_sec':    max(0, job.get('eta_sec', 0) - elapsed),
+        'done':       job.get('done', False),
+        'error':      job.get('error'),
+        'result_url': result_url,
+        'result_ext': job.get('result_ext', '.mp4'),
     })
+
+@app.route('/api/download/<job_id>')
+def api_download(job_id):
+    job = _jobs.get(job_id)
+    if not job or not job.get('done') or job.get('error'):
+        return 'Not available', 404
+    fpath = job.get('result_file')
+    if not fpath or not os.path.exists(fpath):
+        return 'File not found', 404
+    ext = job.get('result_ext', '.mp4')
+    name = 'output' + ext
+    return send_file(fpath, as_attachment=True, download_name=name)
+
+@app.route('/api/credits')
+def api_credits():
+    raw = request.args.get('init_data', '')
+    params = dict(urllib.parse.parse_qsl(raw))
+    try:
+        user = json.loads(params.get('user', '{}'))
+        user_id = user.get('id')
+    except Exception:
+        user_id = None
+    if not user_id:
+        return jsonify({'ok': False, 'error': 'Not identified'}), 400
+    return jsonify({'ok': True, 'credits': _get_credits(user_id),
+                    'ad_url': AD_SMARTLINK, 'watch_secs': AD_WATCH_SECS,
+                    'credits_per_ad': CREDITS_PER_AD})
+
+@app.route('/api/ad/start', methods=['POST'])
+def api_ad_start():
+    user = _parse_user_from_form(request)
+    user_id = user.get('id')
+    if not user_id:
+        return jsonify({'ok': False, 'error': 'Not identified'}), 400
+    token = secrets.token_hex(20)
+    _ad_tokens[token] = {'user_id': str(user_id), 'started_at': time.time()}
+    return jsonify({'ok': True, 'token': token, 'ad_url': AD_SMARTLINK,
+                    'watch_secs': AD_WATCH_SECS, 'credits_per_ad': CREDITS_PER_AD})
+
+@app.route('/api/ad/complete', methods=['POST'])
+def api_ad_complete():
+    user = _parse_user_from_form(request)
+    user_id = user.get('id')
+    token  = request.form.get('token', '')
+    if not user_id or not token:
+        return jsonify({'ok': False, 'error': 'Invalid request'}), 400
+    entry = _ad_tokens.get(token)
+    if not entry:
+        return jsonify({'ok': False, 'error': '❌ Invalid ya expired token!'}), 400
+    if str(entry['user_id']) != str(user_id):
+        return jsonify({'ok': False, 'error': '❌ User mismatch!'}), 403
+    elapsed = time.time() - entry['started_at']
+    if elapsed < AD_WATCH_SECS:
+        remaining = int(AD_WATCH_SECS - elapsed)
+        return jsonify({'ok': False, 'error': f'⏳ Abhi {remaining}s aur ruko!'}), 400
+    del _ad_tokens[token]
+    new_balance = _add_credits(user_id, CREDITS_PER_AD)
+    return jsonify({'ok': True, 'credits_added': CREDITS_PER_AD, 'total_credits': new_balance})
 
 @app.route('/api/subtitle', methods=['POST'])
 def api_subtitle():
@@ -194,12 +310,12 @@ def api_subtitle():
             _bot.send_video(chat_id, ('output_subtitled.mp4', video_bytes),
                 caption=f'✅ <b>Subtitles Ready!</b>\n\n🎨 Style: <b>{style_key.title()}</b>\n🗣️ Lang: <b>{lang_label}</b>\n\n📝 <i>{preview}...</i>',
                 parse_mode='HTML', supports_streaming=True)
-            _finish_job(jid)
+            _finish_job(jid, output_path=send_path)
 
         except Exception as e:
             logging.error(f'WebApp subtitle error: {e}')
             _bot.send_message(chat_id, f'❌ Error: {e}')
-            _finish_job(jid, str(e))
+            _finish_job(jid, error=str(e))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -265,11 +381,11 @@ def api_enhance_video():
             _bot.send_video(chat_id, ('enhanced.mp4', video_bytes),
                 caption=f'✅ <b>AI Enhancement Done!</b>\n\n🎯 Quality: <b>{quality}</b>\n📐 Resolution: <b>{w}x{h}</b>\n🎞️ FPS: <b>{fps}fps</b>\n📦 Size: <b>{size_mb}MB</b>',
                 parse_mode='HTML', supports_streaming=True)
-            _finish_job(jid)
+            _finish_job(jid, output_path=send_path)
         except Exception as e:
             logging.error(f'WebApp enhance-video error: {e}')
             _bot.send_message(chat_id, f'❌ Error: {e}')
-            _finish_job(jid, str(e))
+            _finish_job(jid, error=str(e))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -357,19 +473,19 @@ def api_enhance_image():
                         _bot.send_photo(chat_id, f,
                             caption=f'✅ <b>Image Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n✨ Real-ESRGAN done!',
                             parse_mode='HTML')
-                    _finish_job(jid)
+                    _finish_job(jid, output_path=out_path)
                     return
                 elif status.get('status') == 'failed':
                     _bot.send_message(chat_id, '❌ Enhancement failed.')
-                    _finish_job(jid, 'Enhancement failed')
+                    _finish_job(jid, error='Enhancement failed')
                     return
 
             _bot.send_message(chat_id, '⏰ Timeout ho gaya, baad mein try karo.')
-            _finish_job(jid, 'Timeout')
+            _finish_job(jid, error='Timeout')
         except Exception as e:
             logging.error(f'WebApp enhance-image error: {e}')
             _bot.send_message(chat_id, f'❌ Error: {e}')
-            _finish_job(jid, str(e))
+            _finish_job(jid, error=str(e))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
