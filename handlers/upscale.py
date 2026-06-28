@@ -35,6 +35,47 @@ def _download_telegram_file(bot, file_id: str, dest_path: str) -> None:
             f.write(chunk)
 
 
+TELEGRAM_PHOTO_MAX = 10 * 1024 * 1024   # 10 MB — send_photo limit
+TELEGRAM_DOC_MAX  = 50 * 1024 * 1024   # 50 MB — send_document limit
+
+
+def _compress_image_for_telegram(path: str) -> str:
+    """
+    Compress image so it fits Telegram limits.
+    Returns path to a JPEG file <= TELEGRAM_PHOTO_MAX if possible,
+    otherwise a file <= TELEGRAM_DOC_MAX (caller should use send_document).
+    """
+    size = os.path.getsize(path)
+    if size <= TELEGRAM_PHOTO_MAX:
+        return path
+
+    import cv2
+    img = cv2.imread(path, cv2.IMREAD_COLOR)
+    if img is None:
+        return path  # Can't read — let caller handle the error
+
+    base = os.path.splitext(path)[0]
+    out_path = base + "_tg.jpg"
+
+    # Try progressive JPEG quality reduction
+    for quality in (88, 75, 62, 50, 38):
+        cv2.imwrite(out_path, img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        if os.path.getsize(out_path) <= TELEGRAM_PHOTO_MAX:
+            logger.info(f"[ESRGAN] Compressed to {os.path.getsize(out_path)//1024}KB (quality={quality})")
+            return out_path
+
+    # Still too big for photo — shrink dimensions so it fits as document
+    h, w = img.shape[:2]
+    for factor in (0.75, 0.5, 0.35):
+        small = cv2.resize(img, (int(w * factor), int(h * factor)), interpolation=cv2.INTER_LANCZOS4)
+        cv2.imwrite(out_path, small, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        if os.path.getsize(out_path) <= TELEGRAM_DOC_MAX:
+            logger.info(f"[ESRGAN] Resized+compressed for doc: {os.path.getsize(out_path)//1024}KB")
+            return out_path
+
+    return out_path
+
+
 def _compress_if_needed(path: str) -> str:
     """Compress video if > 49 MB using FFmpeg. Returns final path."""
     if os.path.getsize(path) <= TELEGRAM_MAX_BYTES:
@@ -85,21 +126,36 @@ def process_local_image(bot, message, file_id: str, scale: int, ext: str = ".jpg
         upscale_image(in_path, out_path, scale=scale)
 
         send_progress(bot, chat_id, status.message_id,
+                      "📦 File size check + compress ho raha hai… 80%")
+
+        # Compress if needed so it fits Telegram limits
+        send_path = _compress_image_for_telegram(out_path)
+        final_size = os.path.getsize(send_path)
+
+        send_progress(bot, chat_id, status.message_id,
                       "📤 Enhanced image bhej raha hoon… 95%")
 
-        with open(out_path, "rb") as f:
+        caption = (
+            f"✅ <b>Image {scale}x Enhanced!</b>\n\n"
+            f"📐 Scale: <b>{scale}x</b>\n"
+            f"📦 Size: <b>{final_size // 1024}KB</b>\n"
+            "🔮 Backend: <b>OpenCV Lanczos4 + AI Sharpen</b>"
+        )
+
+        with open(send_path, "rb") as f:
             img_bytes = f.read()
 
-        bot.send_photo(
-            chat_id,
-            img_bytes,
-            caption=(
-                f"✅ <b>Image {scale}x Enhanced!</b>\n\n"
-                f"📐 Scale: <b>{scale}x</b>\n"
-                "🔮 Backend: <b>OpenCV Lanczos4 + AI Sharpen</b>"
-            ),
-            parse_mode="HTML"
-        )
+        if final_size <= TELEGRAM_PHOTO_MAX:
+            bot.send_photo(chat_id, img_bytes, caption=caption, parse_mode="HTML")
+        else:
+            # Too big for photo — send as file (supports up to 50 MB)
+            bot.send_document(
+                chat_id,
+                (os.path.basename(send_path), img_bytes, "image/jpeg"),
+                caption=caption + "\n<i>(File ke roop mein bheja — size badi thi)</i>",
+                parse_mode="HTML"
+            )
+
         bot.delete_message(chat_id, status.message_id)
         logger.info("[ESRGAN] Image upscaling complete.")
         if on_success:

@@ -562,13 +562,46 @@ def api_enhance_image():
             # Success — ab credit katao
             _deduct_credits(chat_id, IMAGE_COST)
 
+            # Compress if > 10 MB so Telegram accepts it
+            import cv2 as _cv2
+            PHOTO_MAX = 10 * 1024 * 1024
+            DOC_MAX   = 50 * 1024 * 1024
+            send_path = out_path
+            if os.path.getsize(out_path) > PHOTO_MAX:
+                comp_path = out_path.replace('.jpg', '_tg.jpg')
+                img_cv = _cv2.imread(out_path, _cv2.IMREAD_COLOR)
+                if img_cv is not None:
+                    for q in (88, 75, 60, 45):
+                        _cv2.imwrite(comp_path, img_cv, [_cv2.IMWRITE_JPEG_QUALITY, q])
+                        if os.path.getsize(comp_path) <= PHOTO_MAX:
+                            send_path = comp_path
+                            break
+                    else:
+                        # Still too big — shrink dimensions
+                        h, w = img_cv.shape[:2]
+                        for fac in (0.75, 0.5):
+                            sm = _cv2.resize(img_cv, (int(w*fac), int(h*fac)), interpolation=_cv2.INTER_LANCZOS4)
+                            _cv2.imwrite(comp_path, sm, [_cv2.IMWRITE_JPEG_QUALITY, 75])
+                            if os.path.getsize(comp_path) <= DOC_MAX:
+                                send_path = comp_path
+                                break
+
+            final_size = os.path.getsize(send_path)
+            caption = (f'✅ <b>Image {scale}x Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n'
+                       f'📦 Size: <b>{final_size//1024}KB</b>\n✨ OpenCV Lanczos4 + AI Sharpen')
+
             _update_job(jid, '📤 Bot pe bhej raha hoon...', 90, 5)
             _bot.send_message(chat_id, '📤 Enhanced image bhej raha hoon... 90%')
-            with open(out_path, 'rb') as f:
-                _bot.send_photo(chat_id, f,
-                    caption=f'✅ <b>Image {scale}x Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n✨ OpenCV Lanczos4 + AI Sharpen',
+            with open(send_path, 'rb') as f:
+                data = f.read()
+            if final_size <= PHOTO_MAX:
+                _bot.send_photo(chat_id, data, caption=caption, parse_mode='HTML')
+            else:
+                _bot.send_document(chat_id,
+                    (os.path.basename(send_path), data, 'image/jpeg'),
+                    caption=caption + '\n<i>(File ke roop mein bheja — size badi thi)</i>',
                     parse_mode='HTML')
-            _finish_job(jid, output_path=out_path)
+            _finish_job(jid, output_path=send_path)
         except Exception as e:
             logging.error(f'WebApp enhance-image error: {e}')
             _bot.send_message(chat_id, f'❌ Enhancement failed — credit nahi kata: {e}')
