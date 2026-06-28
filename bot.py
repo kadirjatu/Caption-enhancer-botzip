@@ -16,6 +16,12 @@ from googleapiclient.discovery import build
 from google import genai
 from google.genai import types as genai_types
 import psychology_tiers
+from handlers.upscale import (
+    pending_local_enhance,
+    process_local_image,
+    process_local_video,
+    register_upscale_handlers,
+)
 
 # Load .env file
 load_dotenv()
@@ -868,6 +874,19 @@ def handle_photo(message):
     chat_id = message.chat.id
     key = str(chat_id)
 
+    # ── Local Real-ESRGAN upscale hook ──────────────────────────
+    if key in pending_local_enhance and pending_local_enhance[key].get("type") == "image":
+        opts  = pending_local_enhance.pop(key, {})
+        scale = opts.get("scale", 4)
+        file_id = message.photo[-1].file_id
+        threading.Thread(
+            target=process_local_image,
+            args=(bot, message, file_id, scale, ".jpg"),
+            daemon=True
+        ).start()
+        return
+    # ────────────────────────────────────────────────────────────
+
     if key not in pending_enhance:
         return  # Not in enhance mode, ignore
 
@@ -1368,6 +1387,29 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
 
 @bot.message_handler(content_types=['video', 'document'])
 def handle_video_subtitle(message):
+    # ── Local Real-ESRGAN video upscale hook ─────────────────────
+    key = str(message.chat.id)
+    if key in pending_local_enhance and pending_local_enhance[key].get("type") == "video":
+        opts = pending_local_enhance.pop(key, {})
+        scale = opts.get("scale", 4)
+        if message.content_type == "video":
+            fid = message.video.file_id
+        elif message.content_type == "document":
+            mime = message.document.mime_type or ""
+            if not mime.startswith("video/"):
+                bot.reply_to(message, "❌ Yeh video nahi hai.")
+                return
+            fid = message.document.file_id
+        else:
+            return
+        threading.Thread(
+            target=process_local_video,
+            args=(bot, message, fid, scale),
+            daemon=True
+        ).start()
+        return
+    # ─────────────────────────────────────────────────────────────
+
     if message.content_type == 'video':
         file_id = message.video.file_id
         file_size = message.video.file_size
@@ -1859,6 +1901,8 @@ def force_take_polling_control():
 
 if __name__ == "__main__":
     print("🤖 SMART Bot started (Psych System Integrated)")
+    # Register local Real-ESRGAN upscale command handlers
+    register_upscale_handlers(bot)
     # Start Mini App web server
     import webapp
     webapp.init(bot, {

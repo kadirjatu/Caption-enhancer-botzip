@@ -15,3 +15,6 @@ google-genai
 pyTelegramBotAPI
 python-dotenv
 requests
+aiofiles
+opencv-python-headless
+Pillow

@@ -1,0 +1,294 @@
+Create a complete production-ready Python project for Replit that integrates AI image and video upscaling directly into an existing Python Telegram bot.
+
+Project Stack
+
+* Python 3.11
+* python-telegram-bot (async)
+* FFmpeg
+* Real-ESRGAN
+* Pillow
+* OpenCV
+* aiofiles
+
+Features
+
+1. Image Upscaling
+
+* Receive JPG, PNG and WEBP images from Telegram.
+* Upscale using the official Real-ESRGAN pretrained models.
+* Default upscale: 4x.
+* Allow optional 2x or 4x scale.
+* Preserve transparency.
+* Return the processed image back to the user.
+
+2. Video Upscaling
+
+Support:
+
+* MP4
+* MOV
+* MKV
+* AVI
+
+Workflow:
+
+* Download Telegram video.
+* Save temporarily.
+* Extract frames using FFmpeg.
+* Process frames sequentially with Real-ESRGAN.
+* Merge frames back using FFmpeg.
+* Copy original audio.
+* Send the final video back to Telegram.
+
+Support videos up to 5 minutes.
+
+3. Performance
+
+* Process frames sequentially to reduce RAM.
+* Use asynchronous processing.
+* Display progress updates in Telegram.
+* Handle multiple jobs safely.
+* Delete temporary files automatically after completion or failure.
+
+4. Automatic Model Setup
+
+If the official Real-ESRGAN repository is missing:
+
+* Clone the latest stable release automatically.
+
+If pretrained weights are missing:
+
+* Download them automatically.
+
+Store inside:
+
+models/
+
+If already downloaded:
+
+* Skip downloading.
+
+Cache models permanently.
+
+5. Project Structure
+
+Bot.py
+
+handlers/
+
+utils/
+
+image.py
+
+video.py
+
+gpu.py
+
+models.py
+
+ffmpeg.py
+
+download.py
+
+progress.py
+
+cleanup.py
+
+config.py
+
+models/
+
+temp/
+
+output/
+
+6. Logging
+
+Log:
+
+* Upload received
+* File downloaded
+* Frame extraction started
+* Frame count
+* Upscaling progress
+* Merge started
+* Completed
+* Execution time
+* Errors
+
+7. Replit Compatibility
+
+Generate everything required for Replit.
+
+Include:
+
+* .replit
+* requirements.txt
+* README.md
+
+No manual configuration required.
+
+8. Code Quality
+
+* Fully asynchronous
+* Modular architecture
+* Type hints
+* Proper comments
+* Robust exception handling
+* No deprecated libraries
+
+9. FFmpeg
+
+Automatically detect FFmpeg.
+
+If missing:
+
+* Install automatically when possible.
+* Otherwise display a helpful error.
+
+10. Real-ESRGAN Backend
+
+Automatically detect GPU.
+
+If Vulkan-compatible GPU exists:
+
+* Use realesrgan-ncnn-vulkan.
+
+Otherwise:
+
+* Automatically fall back to the official Python Real-ESRGAN implementation.
+
+No manual switching required.
+
+11. Temporary Files
+
+Store temporary processing files inside:
+
+temp/
+
+Processed output:
+
+output/
+
+Delete:
+
+* Temporary files after completion.
+* Failed jobs.
+* Files older than 24 hours.
+
+12. Supported Output
+
+Images:
+
+* PNG
+* JPG
+* WEBP
+
+Videos:
+
+* MP4
+
+Compression presets:
+
+* High Quality
+* Balanced
+* Small Size
+
+13. Telegram Integration
+
+Generate reusable async Python functions that can be directly called from existing Telegram bot handlers.
+
+Image flow:
+
+User uploads image
+
+↓
+
+Download file
+
+↓
+
+Upscale
+
+↓
+
+Send processed image
+
+↓
+
+Cleanup
+
+Video flow:
+
+User uploads video
+
+↓
+
+Download
+
+↓
+
+Extract frames
+
+↓
+
+Upscale frames
+
+↓
+
+Merge video
+
+↓
+
+Send processed video
+
+↓
+
+Cleanup
+
+14. Progress Updates
+
+Send Telegram progress messages such as:
+
+* Downloading…
+* Extracting frames…
+* Upscaling image…
+* Upscaling frame X/Y…
+* Merging video…
+* Uploading result…
+* Completed.
+
+15. Error Handling
+
+Gracefully handle:
+
+* Unsupported formats
+* Corrupted files
+* FFmpeg errors
+* Real-ESRGAN errors
+* GPU failures
+* Missing models
+* Disk space issues
+* Timeout errors
+
+16. Licensing
+
+Use only open-source libraries with compatible licenses.
+
+Use the official Real-ESRGAN GitHub repository.
+
+Do not implement any custom upscaling algorithm.
+
+Use only the official pretrained models.
+
+17. Production Ready
+
+The generated project must run immediately after importing into Replit.
+
+No placeholders.
+
+No TODO comments.
+
+Generate complete working source code.
+
+Everything must be fully functional and ready to integrate into an existing asynchronous Python Telegram bot.
