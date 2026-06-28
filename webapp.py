@@ -539,68 +539,24 @@ def api_enhance_image():
     _add_history(chat_id, jid, 'image', IMAGE_COST, mode)
 
     def process():
-        import requests as req_lib
         try:
-            _update_job(jid, '⬆️ Image upload ho rahi hai...', 10, 110)
-            _bot.send_message(chat_id, f'🖼️ Image enhance ho rahi hai ({mode})... 10%')
-            with open(img_path, 'rb') as f:
-                up = req_lib.post('https://tmpfiles.org/api/v1/upload', files={'file': f}, timeout=60)
-            raw_url = up.json()['data']['url']
-            dl_url  = raw_url.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
-
-            REPLICATE_TOKEN = os.getenv('REPLICATE_API_TOKEN', '')
-            if not REPLICATE_TOKEN:
-                _bot.send_message(chat_id, '❌ REPLICATE_API_TOKEN set nahi hai.')
-                _finish_job(jid, 'REPLICATE_API_TOKEN missing')
-                return
-
             scale = 4 if '4x' in mode else 2
-            face  = 'face' in mode
+            _update_job(jid, '🔮 Local Real-ESRGAN shuru ho raha hai...', 10, 90)
+            _bot.send_message(chat_id, f'🖼️ Local Real-ESRGAN {scale}x enhance ho rahi hai... 10%')
 
-            _update_job(jid, '🤖 AI model se enhance ho raha hai...', 30, 90)
-            pred = req_lib.post(
-                'https://api.replicate.com/v1/predictions',
-                headers={'Authorization': f'Token {REPLICATE_TOKEN}', 'Content-Type': 'application/json'},
-                json={'version': '42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b',
-                      'input': {'image': dl_url, 'scale': scale, 'face_enhance': face}},
-                timeout=30
-            ).json()
-            pred_id = pred.get('id')
-            if not pred_id:
-                _bot.send_message(chat_id, '❌ Replicate API error.')
-                _finish_job(jid, 'Replicate API error')
-                return
+            out_path = os.path.join(tmp_dir, 'enhanced.jpg')
+            _update_job(jid, f'🔮 Upscaling {scale}x...', 40, 60)
 
-            _bot.send_message(chat_id, '⚙️ AI enhance kar raha hai... 40%\n⏳ 1-2 min')
-            for tick in range(60):
-                time.sleep(5)
-                pct = min(85, 40 + tick * 2)
-                _update_job(jid, f'✨ AI processing... ({tick*5}s)', pct, max(5, 90 - tick*5))
-                status = req_lib.get(
-                    f'https://api.replicate.com/v1/predictions/{pred_id}',
-                    headers={'Authorization': f'Token {REPLICATE_TOKEN}'}, timeout=15
-                ).json()
-                if status.get('status') == 'succeeded':
-                    out_url  = status['output']
-                    img_data = req_lib.get(out_url, timeout=60).content
-                    out_path = os.path.join(tmp_dir, 'enhanced.jpg')
-                    with open(out_path, 'wb') as f:
-                        f.write(img_data)
-                    _update_job(jid, '📤 Bot pe bhej raha hoon...', 95, 5)
-                    _bot.send_message(chat_id, '📤 Enhanced image bhej raha hoon... 95%')
-                    with open(out_path, 'rb') as f:
-                        _bot.send_photo(chat_id, f,
-                            caption=f'✅ <b>Image Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n✨ Real-ESRGAN done!',
-                            parse_mode='HTML')
-                    _finish_job(jid, output_path=out_path)
-                    return
-                elif status.get('status') == 'failed':
-                    _bot.send_message(chat_id, '❌ Enhancement failed.')
-                    _finish_job(jid, error='Enhancement failed')
-                    return
+            from utils.image import upscale_image
+            upscale_image(img_path, out_path, scale=scale)
 
-            _bot.send_message(chat_id, '⏰ Timeout ho gaya, baad mein try karo.')
-            _finish_job(jid, error='Timeout')
+            _update_job(jid, '📤 Bot pe bhej raha hoon...', 90, 5)
+            _bot.send_message(chat_id, '📤 Enhanced image bhej raha hoon... 90%')
+            with open(out_path, 'rb') as f:
+                _bot.send_photo(chat_id, f,
+                    caption=f'✅ <b>Image Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n✨ Local Real-ESRGAN {scale}x done!',
+                    parse_mode='HTML')
+            _finish_job(jid, output_path=out_path)
         except Exception as e:
             logging.error(f'WebApp enhance-image error: {e}')
             _bot.send_message(chat_id, f'❌ Error: {e}')
