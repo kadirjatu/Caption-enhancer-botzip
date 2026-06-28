@@ -62,6 +62,15 @@ def _deduct_credits(user_id, amount):
         _save_users(users)
         return users[uid]['credits']
 
+def _check_credits(user_id, amount):
+    """Only checks if user has enough credits. Raises ValueError if not. Does NOT deduct."""
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        current = users.get(uid, {}).get('credits', 0)
+        if current < amount:
+            raise ValueError(f'Kam credits hain! Tumhare paas {current} hain, {amount} chahiye.')
+
 def _add_history(user_id, job_id, task_type, cost, desc=''):
     """Adds a task to user history (max 3 entries, oldest removed)."""
     with _users_lock:
@@ -525,9 +534,9 @@ def api_enhance_image():
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return jsonify({'ok': False, 'error': f'Save failed: {e}'}), 500
 
-    # ── Check & deduct credits ──
+    # ── Check credits (deduction happens after success) ──
     try:
-        _deduct_credits(chat_id, IMAGE_COST)
+        _check_credits(chat_id, IMAGE_COST)
     except ValueError as e:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         return jsonify({'ok': False, 'error': str(e), 'need_credits': IMAGE_COST}), 400
@@ -541,25 +550,28 @@ def api_enhance_image():
     def process():
         try:
             scale = 4 if '4x' in mode else 2
-            _update_job(jid, '🔮 Local Real-ESRGAN shuru ho raha hai...', 10, 90)
-            _bot.send_message(chat_id, f'🖼️ Local Real-ESRGAN {scale}x enhance ho rahi hai... 10%')
+            _update_job(jid, '🔮 Upscaling shuru ho raha hai...', 10, 90)
+            _bot.send_message(chat_id, f'🖼️ Image {scale}x upscaling shuru... 10%')
 
             out_path = os.path.join(tmp_dir, 'enhanced.jpg')
-            _update_job(jid, f'🔮 Upscaling {scale}x...', 40, 60)
+            _update_job(jid, f'🔮 {scale}x upscaling...', 40, 60)
 
             from utils.image import upscale_image
             upscale_image(img_path, out_path, scale=scale)
+
+            # Success — ab credit katao
+            _deduct_credits(chat_id, IMAGE_COST)
 
             _update_job(jid, '📤 Bot pe bhej raha hoon...', 90, 5)
             _bot.send_message(chat_id, '📤 Enhanced image bhej raha hoon... 90%')
             with open(out_path, 'rb') as f:
                 _bot.send_photo(chat_id, f,
-                    caption=f'✅ <b>Image Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n✨ Local Real-ESRGAN {scale}x done!',
+                    caption=f'✅ <b>Image {scale}x Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n✨ OpenCV Lanczos4 + AI Sharpen',
                     parse_mode='HTML')
             _finish_job(jid, output_path=out_path)
         except Exception as e:
             logging.error(f'WebApp enhance-image error: {e}')
-            _bot.send_message(chat_id, f'❌ Error: {e}')
+            _bot.send_message(chat_id, f'❌ Enhancement failed — credit nahi kata: {e}')
             _finish_job(jid, error=str(e))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)

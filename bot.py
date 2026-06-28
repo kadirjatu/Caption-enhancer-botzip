@@ -813,12 +813,18 @@ def handle_photo(message):
         )
         return
 
-    deduct_credits(user_id, ENHANCE_CREDIT_COST)
+    # Credit sirf success ke baad katega
+    def _deduct():
+        deduct_credits(user_id, ENHANCE_CREDIT_COST)
+    def _refund():
+        pass  # Credit nahi kata tha, kuch nahi karna
+
     # Use highest resolution photo — route to local Real-ESRGAN
     file_id = message.photo[-1].file_id
     threading.Thread(
         target=process_local_image,
         args=(bot, message, file_id, enhance_opts["scale"], ".jpg"),
+        kwargs={"on_success": _deduct, "on_failure": _refund},
         daemon=True
     ).start()
 
@@ -1456,8 +1462,6 @@ def handle_video_quality(call):
 
         user_id    = call.from_user.id
         video_data = pending_videos.pop(vid_key)
-        deduct_credits(user_id, ENHANCE_CREDIT_COST)
-        remaining  = get_credits(user_id)
         qual       = VIDEO_QUALITY_OPTIONS[qual_key]
 
         try:
@@ -1465,13 +1469,19 @@ def handle_video_quality(call):
         except Exception:
             pass
 
-        bot.answer_callback_query(call.id, f"🎬 {qual['label']} — Processing! (-{ENHANCE_CREDIT_COST} Credit, Balance: {remaining})")
+        bot.answer_callback_query(call.id, f"🎬 {qual['label']} — Processing! Credit success pe katega.")
         # Route to local Real-ESRGAN frame-by-frame upscaling
         scale_map = {"1080p30": 4, "1080p60": 4, "2k60": 4, "4k60": 4}
         esrgan_scale = scale_map.get(qual_key, 4)
+
+        # Credit sirf success ke baad katega
+        def _vid_deduct():
+            deduct_credits(user_id, ENHANCE_CREDIT_COST)
+
         threading.Thread(
             target=process_local_video,
             args=(bot, video_data["message"], video_data["file_id"], esrgan_scale),
+            kwargs={"on_success": _vid_deduct},
             daemon=True
         ).start()
 

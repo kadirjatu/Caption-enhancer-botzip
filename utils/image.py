@@ -42,7 +42,7 @@ def upscale_image(
 
 def _upscale_python(input_path: str, output_path: str, scale: int) -> None:
     import cv2
-    from utils.models import upscale_image_array
+    import numpy as np
 
     img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
     if img is None:
@@ -56,11 +56,14 @@ def _upscale_python(input_path: str, output_path: str, scale: int) -> None:
         bgr = img
         alpha = None
 
-    enhanced = upscale_image_array(bgr, scale=scale)
+    h, w = bgr.shape[:2]
+    new_w, new_h = w * scale, h * scale
+    enhanced = cv2.resize(bgr, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+    blurred = cv2.GaussianBlur(enhanced, (0, 0), 3)
+    enhanced = cv2.addWeighted(enhanced, 1.5, blurred, -0.5, 0)
 
     if has_alpha:
-        import numpy as np
-        alpha_up = cv2.resize(alpha, (enhanced.shape[1], enhanced.shape[0]), interpolation=cv2.INTER_LANCZOS4)
+        alpha_up = cv2.resize(alpha, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
         enhanced = cv2.merge([enhanced, alpha_up])
 
     cv2.imwrite(output_path, enhanced)

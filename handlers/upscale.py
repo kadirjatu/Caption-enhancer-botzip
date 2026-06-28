@@ -56,12 +56,15 @@ def _compress_if_needed(path: str) -> str:
 
 # ── Image processing job ──────────────────────────────────────────
 
-def process_local_image(bot, message, file_id: str, scale: int, ext: str = ".jpg") -> None:
-    """Download image, upscale with local Real-ESRGAN, send result."""
+def process_local_image(bot, message, file_id: str, scale: int, ext: str = ".jpg",
+                        on_success=None, on_failure=None) -> None:
+    """Download image, upscale with local Real-ESRGAN, send result.
+    on_success() called only after successful delivery.
+    on_failure() called if processing/sending fails (pass to refund credits)."""
     chat_id = message.chat.id
     status  = send_new_status(
         bot, chat_id,
-        f"⏳ <b>Local Real-ESRGAN {scale}x</b> shuru ho raha hai…"
+        f"⏳ <b>Image upscaling {scale}x</b> shuru ho raha hai…"
     )
     tmp_dir = tempfile.mkdtemp(dir=TEMP_DIR)
     try:
@@ -75,8 +78,8 @@ def process_local_image(bot, message, file_id: str, scale: int, ext: str = ".jpg
         _download_telegram_file(bot, file_id, in_path)
 
         send_progress(bot, chat_id, status.message_id,
-                      f"🔮 Real-ESRGAN {scale}x upscaling… 40%\n"
-                      "⏳ CPU mode — 30-120s lagenge")
+                      f"🔮 {scale}x upscaling ho rahi hai… 40%\n"
+                      "⏳ 10-30 sec lagenge")
 
         from utils.image import upscale_image
         upscale_image(in_path, out_path, scale=scale)
@@ -91,18 +94,22 @@ def process_local_image(bot, message, file_id: str, scale: int, ext: str = ".jpg
             chat_id,
             img_bytes,
             caption=(
-                f"✅ <b>Local Real-ESRGAN {scale}x Done!</b>\n\n"
+                f"✅ <b>Image {scale}x Enhanced!</b>\n\n"
                 f"📐 Scale: <b>{scale}x</b>\n"
-                "🔮 Backend: <b>CPU (Python Real-ESRGAN)</b>"
+                "🔮 Backend: <b>OpenCV Lanczos4 + AI Sharpen</b>"
             ),
             parse_mode="HTML"
         )
         bot.delete_message(chat_id, status.message_id)
         logger.info("[ESRGAN] Image upscaling complete.")
+        if on_success:
+            on_success()
 
     except Exception as e:
         logger.error(f"[ESRGAN] Image error: {e}")
-        send_progress(bot, chat_id, status.message_id, f"❌ <b>Error:</b> {e}")
+        send_progress(bot, chat_id, status.message_id, f"❌ <b>Enhancement failed:</b> {e}")
+        if on_failure:
+            on_failure()
     finally:
         delete_path(tmp_dir)
         cleanup_old_files()
@@ -110,13 +117,16 @@ def process_local_image(bot, message, file_id: str, scale: int, ext: str = ".jpg
 
 # ── Video processing job ──────────────────────────────────────────
 
-def process_local_video(bot, message, file_id: str, scale: int) -> None:
-    """Download video, upscale frame-by-frame with local Real-ESRGAN, send result."""
+def process_local_video(bot, message, file_id: str, scale: int,
+                        on_success=None, on_failure=None) -> None:
+    """Download video, upscale frame-by-frame with local Real-ESRGAN, send result.
+    on_success() called only after successful delivery.
+    on_failure() called if processing/sending fails (pass to refund credits)."""
     chat_id = message.chat.id
     status  = send_new_status(
         bot, chat_id,
-        f"⏳ <b>Local Real-ESRGAN Video {scale}x</b> shuru ho raha hai…\n"
-        "⚠️ Yeh CPU intensive hai — kaafi time lagega!"
+        f"⏳ <b>Video upscaling {scale}x</b> shuru ho raha hai…\n"
+        "⚠️ CPU mode — kaafi time lagega!"
     )
     tmp_dir  = tempfile.mkdtemp(dir=TEMP_DIR)
     in_path  = os.path.join(tmp_dir, "input.mp4")
@@ -152,7 +162,7 @@ def process_local_video(bot, message, file_id: str, scale: int) -> None:
             chat_id,
             ("enhanced.mp4", vid_bytes),
             caption=(
-                f"✅ <b>Real-ESRGAN Video {scale}x Done!</b>\n\n"
+                f"✅ <b>Video {scale}x Enhanced!</b>\n\n"
                 f"📦 Size: <b>{size_mb} MB</b>\n"
                 f"🔮 Scale: <b>{scale}x</b> — frame-by-frame"
             ),
@@ -161,10 +171,14 @@ def process_local_video(bot, message, file_id: str, scale: int) -> None:
         )
         bot.delete_message(chat_id, status.message_id)
         logger.info("[ESRGAN] Video upscaling complete.")
+        if on_success:
+            on_success()
 
     except Exception as e:
         logger.error(f"[ESRGAN] Video error: {e}")
-        send_progress(bot, chat_id, status.message_id, f"❌ <b>Error:</b> {e}")
+        send_progress(bot, chat_id, status.message_id, f"❌ <b>Enhancement failed:</b> {e}")
+        if on_failure:
+            on_failure()
     finally:
         delete_path(tmp_dir)
         cleanup_old_files()
