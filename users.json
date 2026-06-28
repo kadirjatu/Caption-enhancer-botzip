@@ -1,6 +1,16 @@
 {
   "6038098264": {
-    "credits": 7,
-    "last_bonus": 1782638038.3435879
+    "credits": 2,
+    "last_bonus": 1782638038.3435879,
+    "history": [
+      {
+        "job_id": "b36d4fe8-2e14-43c2-9a1c-6bebfde6e288",
+        "type": "image",
+        "desc": "4x",
+        "cost": 5,
+        "status": "error",
+        "created_at": 1782645487
+      }
+    ]
   }
 }

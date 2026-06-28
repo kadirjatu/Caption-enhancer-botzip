@@ -816,13 +816,12 @@ def handle_menu_enhance(call):
             parse_mode="HTML", reply_markup=get_main_keyboard(user_id)
         )
         return
-    esrgan_status = "✅ Ready" if REPLICATE_API_TOKEN else "⚠️ API key pending"
     bot.send_message(
         call.message.chat.id,
         f"🔮 <b>AI Image/Video Enhancer</b>\n\n"
         f"<b>Real-ESRGAN</b> se image 4x sharper aur HD ban jaati hai!\n\n"
         f"💳 Cost: <b>{ENHANCE_CREDIT_COST} Credit</b> per image\n"
-        f"🔑 API Status: <b>{esrgan_status}</b>\n\n"
+        f"🔑 Backend: <b>✅ Local Real-ESRGAN (Lanczos4 + AI Sharpen)</b>\n\n"
         f"📸 <b>Abhi image bhejo enhance karne ke liye!</b>\n\n"
         f"<i>Options:\n"
         f"• /enhance — Normal 4x enhance\n"
@@ -902,12 +901,12 @@ def handle_photo(message):
         return
 
     deduct_credits(user_id, ENHANCE_CREDIT_COST)
-    # Use highest resolution photo
+    # Use highest resolution photo — route to local Real-ESRGAN
     file_id = message.photo[-1].file_id
     threading.Thread(
-        target=process_image_enhance,
-        args=(bot, message, file_id),
-        kwargs={"scale": enhance_opts["scale"], "face_enhance": enhance_opts["face"]}
+        target=process_local_image,
+        args=(bot, message, file_id, enhance_opts["scale"], ".jpg"),
+        daemon=True
     ).start()
 
 # =========================
@@ -1554,10 +1553,13 @@ def handle_video_quality(call):
             pass
 
         bot.answer_callback_query(call.id, f"🎬 {qual['label']} — Processing! (-{ENHANCE_CREDIT_COST} Credit, Balance: {remaining})")
+        # Route to local Real-ESRGAN frame-by-frame upscaling
+        scale_map = {"1080p30": 4, "1080p60": 4, "2k60": 4, "4k60": 4}
+        esrgan_scale = scale_map.get(qual_key, 4)
         threading.Thread(
-            target=process_video_enhance,
-            args=(bot, video_data["message"], video_data["file_id"]),
-            kwargs={"qual_key": qual_key}
+            target=process_local_video,
+            args=(bot, video_data["message"], video_data["file_id"], esrgan_scale),
+            daemon=True
         ).start()
 
     except Exception as e:
