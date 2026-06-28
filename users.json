@@ -1,16 +1,8 @@
 {
   "6038098264": {
-    "credits": 1,
+    "credits": 2,
     "last_bonus": 1782638038.3435879,
     "history": [
-      {
-        "job_id": "b36d4fe8-2e14-43c2-9a1c-6bebfde6e288",
-        "type": "image",
-        "desc": "4x",
-        "cost": 5,
-        "status": "error",
-        "created_at": 1782645487
-      },
       {
         "job_id": "a9bb7958-366c-4b61-bb3e-c7dea8ab9df3",
         "type": "image",
@@ -26,6 +18,14 @@
         "cost": 5,
         "status": "error",
         "created_at": 1782659165
+      },
+      {
+        "job_id": "b0a21a84-8cd2-4a51-8949-1d61e32cafd4",
+        "type": "image",
+        "desc": "4x",
+        "cost": 5,
+        "status": "error",
+        "created_at": 1782660056
       }
     ]
   }
