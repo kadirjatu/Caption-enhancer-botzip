@@ -39,35 +39,51 @@ TELEGRAM_PHOTO_MAX = 10 * 1024 * 1024   # 10 MB — send_photo limit
 TELEGRAM_DOC_MAX  = 50 * 1024 * 1024   # 50 MB — send_document limit
 
 
+TELEGRAM_PHOTO_DIM_MAX = 4096   # Telegram send_photo max safe dimension per side
+
+
 def _compress_image_for_telegram(path: str) -> str:
     """
-    Compress image so it fits Telegram limits.
-    Returns path to a JPEG file <= TELEGRAM_PHOTO_MAX if possible,
-    otherwise a file <= TELEGRAM_DOC_MAX (caller should use send_document).
+    Resize + compress image to fit Telegram limits.
+    - First caps pixel dimensions (PHOTO_INVALID_DIMENSIONS fix).
+    - Then reduces file size via JPEG quality.
+    Returns path to a JPEG <= TELEGRAM_PHOTO_MAX if possible,
+    otherwise <= TELEGRAM_DOC_MAX (caller should use send_document).
     """
-    size = os.path.getsize(path)
-    if size <= TELEGRAM_PHOTO_MAX:
-        return path
-
     import cv2
+
     img = cv2.imread(path, cv2.IMREAD_COLOR)
     if img is None:
-        return path  # Can't read — let caller handle the error
+        return path
 
     base = os.path.splitext(path)[0]
     out_path = base + "_tg.jpg"
 
-    # Try progressive JPEG quality reduction
-    for quality in (88, 75, 62, 50, 38):
+    # ── Step 1: Cap pixel dimensions so send_photo doesn't fail ──
+    h, w = img.shape[:2]
+    if w > TELEGRAM_PHOTO_DIM_MAX or h > TELEGRAM_PHOTO_DIM_MAX:
+        scale_factor = TELEGRAM_PHOTO_DIM_MAX / max(w, h)
+        new_w = int(w * scale_factor)
+        new_h = int(h * scale_factor)
+        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+        logger.info(f"[ESRGAN] Resized for Telegram: {w}x{h} → {new_w}x{new_h}")
+
+    # ── Step 2: Check file size after dimension cap ──
+    cv2.imwrite(out_path, img, [cv2.IMWRITE_JPEG_QUALITY, 88])
+    if os.path.getsize(out_path) <= TELEGRAM_PHOTO_MAX:
+        return out_path
+
+    # ── Step 3: Progressive JPEG quality reduction ──
+    for quality in (75, 62, 50, 38):
         cv2.imwrite(out_path, img, [cv2.IMWRITE_JPEG_QUALITY, quality])
         if os.path.getsize(out_path) <= TELEGRAM_PHOTO_MAX:
             logger.info(f"[ESRGAN] Compressed to {os.path.getsize(out_path)//1024}KB (quality={quality})")
             return out_path
 
-    # Still too big for photo — shrink dimensions so it fits as document
-    h, w = img.shape[:2]
+    # ── Step 4: Shrink further for document send ──
+    h2, w2 = img.shape[:2]
     for factor in (0.75, 0.5, 0.35):
-        small = cv2.resize(img, (int(w * factor), int(h * factor)), interpolation=cv2.INTER_LANCZOS4)
+        small = cv2.resize(img, (int(w2 * factor), int(h2 * factor)), interpolation=cv2.INTER_LANCZOS4)
         cv2.imwrite(out_path, small, [cv2.IMWRITE_JPEG_QUALITY, 75])
         if os.path.getsize(out_path) <= TELEGRAM_DOC_MAX:
             logger.info(f"[ESRGAN] Resized+compressed for doc: {os.path.getsize(out_path)//1024}KB")

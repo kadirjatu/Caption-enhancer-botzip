@@ -483,7 +483,6 @@ def api_enhance_video():
         output_path = os.path.join(tmp_dir, 'enhanced.mp4')
         try:
             _update_job(jid, f'⚡ Video enhance ho rahi hai ({quality})...', 10, eta_total)
-            _bot.send_message(chat_id, f'⚡ Video enhance ho rahi hai ({quality})... 10%\n⏳ Thoda wait karo')
             vf = f'scale={w}:{h}:flags=lanczos,fps={fps},unsharp=5:5:1.5:5:5:0,hqdn3d=1.5:1.5:6:6,eq=contrast=1.05:brightness=0.02:saturation=1.1'
             subprocess.run([
                 'ffmpeg', '-y', '-i', input_path, '-vf', vf,
@@ -491,26 +490,18 @@ def api_enhance_video():
                 '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output_path
             ], check=True, capture_output=True)
 
-            _update_job(jid, '📤 Bot pe bhej raha hoon...', 88, 10)
-            _bot.send_message(chat_id, '📤 Enhanced video bhej raha hoon... 88%')
+            _update_job(jid, '✅ Video ready! Download button pe click karo.', 95, 0)
             send_path = _fns['compress'](output_path)
-            size_mb = os.path.getsize(send_path) // (1024 * 1024)
-            with open(send_path, 'rb') as f:
-                video_bytes = f.read()
-            _bot.send_video(chat_id, ('enhanced.mp4', video_bytes),
-                caption=f'✅ <b>AI Enhancement Done!</b>\n\n🎯 Quality: <b>{quality}</b>\n📐 Resolution: <b>{w}x{h}</b>\n🎞️ FPS: <b>{fps}fps</b>\n📦 Size: <b>{size_mb}MB</b>',
-                parse_mode='HTML', supports_streaming=True)
             _finish_job(jid, output_path=send_path)
         except Exception as e:
             logging.error(f'WebApp enhance-video error: {e}')
-            _bot.send_message(chat_id, f'❌ Error: {e}')
             _finish_job(jid, error=str(e))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
     threading.Thread(target=process, daemon=True).start()
     return jsonify({'ok': True, 'job_id': jid, 'eta_sec': eta_total,
-                    'message': 'Enhancement shuru! Bot pe result aayega.'})
+                    'message': 'Enhancement shuru! Mini app mein result dikhega.'})
 
 
 @app.route('/api/enhance-image', methods=['POST'])
@@ -550,8 +541,7 @@ def api_enhance_image():
     def process():
         try:
             scale = 4 if '4x' in mode else 2
-            _update_job(jid, '🔮 Upscaling shuru ho raha hai...', 10, 90)
-            _bot.send_message(chat_id, f'🖼️ Image {scale}x upscaling shuru... 10%')
+            _update_job(jid, f'🔮 {scale}x upscaling shuru...', 10, 90)
 
             out_path = os.path.join(tmp_dir, 'enhanced.jpg')
             _update_job(jid, f'🔮 {scale}x upscaling...', 40, 60)
@@ -562,49 +552,36 @@ def api_enhance_image():
             # Success — ab credit katao
             _deduct_credits(chat_id, IMAGE_COST)
 
-            # Compress if > 10 MB so Telegram accepts it
+            # Resize + compress for Telegram-safe dimensions & file size
             import cv2 as _cv2
-            PHOTO_MAX = 10 * 1024 * 1024
-            DOC_MAX   = 50 * 1024 * 1024
+            PHOTO_DIM  = 4096
+            PHOTO_MAX  = 10 * 1024 * 1024
+            DOC_MAX    = 50 * 1024 * 1024
+            img_cv = _cv2.imread(out_path, _cv2.IMREAD_COLOR)
             send_path = out_path
-            if os.path.getsize(out_path) > PHOTO_MAX:
-                comp_path = out_path.replace('.jpg', '_tg.jpg')
-                img_cv = _cv2.imread(out_path, _cv2.IMREAD_COLOR)
-                if img_cv is not None:
-                    for q in (88, 75, 60, 45):
-                        _cv2.imwrite(comp_path, img_cv, [_cv2.IMWRITE_JPEG_QUALITY, q])
-                        if os.path.getsize(comp_path) <= PHOTO_MAX:
-                            send_path = comp_path
-                            break
-                    else:
-                        # Still too big — shrink dimensions
-                        h, w = img_cv.shape[:2]
-                        for fac in (0.75, 0.5):
-                            sm = _cv2.resize(img_cv, (int(w*fac), int(h*fac)), interpolation=_cv2.INTER_LANCZOS4)
-                            _cv2.imwrite(comp_path, sm, [_cv2.IMWRITE_JPEG_QUALITY, 75])
-                            if os.path.getsize(comp_path) <= DOC_MAX:
-                                send_path = comp_path
-                                break
+            if img_cv is not None:
+                h_px, w_px = img_cv.shape[:2]
+                # Cap pixel dimensions first
+                if w_px > PHOTO_DIM or h_px > PHOTO_DIM:
+                    factor = PHOTO_DIM / max(w_px, h_px)
+                    img_cv = _cv2.resize(img_cv,
+                        (int(w_px * factor), int(h_px * factor)),
+                        interpolation=_cv2.INTER_LANCZOS4)
+                comp_path = out_path.replace('.jpg', '_web.jpg')
+                # Try quality reduction to fit under PHOTO_MAX
+                for q in (88, 75, 60, 45):
+                    _cv2.imwrite(comp_path, img_cv, [_cv2.IMWRITE_JPEG_QUALITY, q])
+                    if os.path.getsize(comp_path) <= PHOTO_MAX:
+                        send_path = comp_path
+                        break
+                else:
+                    _cv2.imwrite(comp_path, img_cv, [_cv2.IMWRITE_JPEG_QUALITY, 45])
+                    send_path = comp_path
 
-            final_size = os.path.getsize(send_path)
-            caption = (f'✅ <b>Image {scale}x Enhanced!</b>\n🔍 Mode: <b>{mode}</b>\n'
-                       f'📦 Size: <b>{final_size//1024}KB</b>\n✨ OpenCV Lanczos4 + AI Sharpen')
-
-            _update_job(jid, '📤 Bot pe bhej raha hoon...', 90, 5)
-            _bot.send_message(chat_id, '📤 Enhanced image bhej raha hoon... 90%')
-            with open(send_path, 'rb') as f:
-                data = f.read()
-            if final_size <= PHOTO_MAX:
-                _bot.send_photo(chat_id, data, caption=caption, parse_mode='HTML')
-            else:
-                _bot.send_document(chat_id,
-                    (os.path.basename(send_path), data, 'image/jpeg'),
-                    caption=caption + '\n<i>(File ke roop mein bheja — size badi thi)</i>',
-                    parse_mode='HTML')
+            _update_job(jid, '✅ Image ready! Download button pe click karo.', 95, 0)
             _finish_job(jid, output_path=send_path)
         except Exception as e:
             logging.error(f'WebApp enhance-image error: {e}')
-            _bot.send_message(chat_id, f'❌ Enhancement failed — credit nahi kata: {e}')
             _finish_job(jid, error=str(e))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)

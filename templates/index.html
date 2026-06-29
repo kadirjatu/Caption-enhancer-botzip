@@ -178,7 +178,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       ✅ <b style="color:var(--text)">1GB+ videos</b> seedha upload karo<br>
       ✅ Telegram ka <b style="color:var(--text)">20MB limit bypass</b><br>
       ✅ <b style="color:var(--text)">Real-time progress</b> + ETA dikhai deta hai<br>
-      ✅ Result bot pe aayega
+      ✅ Processing ho rahi hai...
     </div>
   </div>
 </div>
@@ -647,7 +647,7 @@ function startPolling(jobId, prefix){
         }else{
           stepEl.textContent='✅ Complete!';
           doneEl.className='job-done success';
-          doneEl.textContent='✅ Bot pe bhi bhej di! Yahan se bhi download karo 👇';
+          doneEl.textContent='✅ Done! Neeche download karo 👇';
           // Show download button if result is available from mini app
           if(d.result_url && dlBtn){
             state.jobUrls[prefix] = d.result_url;
