@@ -1072,6 +1072,38 @@ def generate_ass_styled(segments, style_key="netflix", words_data=None, font_nam
 
     return header + "\n".join(dialogues)
 
+def gemini_transliterate_hinglish(segments):
+    """Devanagari text ko Roman Hinglish mein convert karo using Gemini."""
+    if not gemini_client or not segments:
+        return segments
+    has_dev = any('\u0900' <= ch <= '\u097F' for seg in segments for ch in seg.get('text', ''))
+    if not has_dev:
+        return segments
+    try:
+        numbered = "\n".join(f"{i+1}. {s['text'].strip()}" for i, s in enumerate(segments))
+        prompt = (
+            "You are a Hinglish transliterator. Convert each Hindi Devanagari line to Roman script (Hinglish).\n"
+            "Rules:\n"
+            "- Write each Hindi word exactly as it sounds in Roman/English letters\n"
+            "- Keep any English words unchanged\n"
+            "- Do NOT translate the meaning — only change the script\n"
+            "- Example: 'नमस्ते दुनिया' → 'Namaste Duniya'\n"
+            "- Example: 'यह बहुत अच्छा है' → 'Yeh bahut accha hai'\n"
+            f"Return exactly {len(segments)} lines as '1. text', '2. text', etc.\n\nLines:\n{numbered}"
+        )
+        resp = gemini_client.models.generate_content(model="gemini-2.0-flash-lite", contents=prompt)
+        result_map = {}
+        for line in resp.text.strip().splitlines():
+            line = line.strip()
+            if ". " in line:
+                idx_s, _, txt = line.partition(". ")
+                if idx_s.isdigit() and int(idx_s) >= 1:
+                    result_map[int(idx_s) - 1] = txt.strip()
+        return [{**s, 'text': result_map.get(i, s['text'])} for i, s in enumerate(segments)]
+    except Exception as e:
+        logging.error(f"Gemini Hinglish transliterate error: {e}")
+        return segments
+
 def gemini_add_emojis(segments):
     if not gemini_client or not segments:
         return segments
@@ -1854,6 +1886,7 @@ if __name__ == "__main__":
         'gemini_correct':  gemini_correct_segments,
         'gemini_translate':gemini_translate_segments,
         'gemini_emojis':   gemini_add_emojis,
+        'gemini_transliterate_hinglish': gemini_transliterate_hinglish,
         'compress':        compress_for_telegram,
     })
     webapp.start_thread()
