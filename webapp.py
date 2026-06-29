@@ -14,9 +14,13 @@ _jobs = {}
 USERS_FILE      = 'users.json'
 CREDITS_PER_AD  = 3          # credits per ad watched
 AD_WATCH_SECS   = 30         # minimum seconds user must watch
+AD_COOLDOWN_SECS = 120       # seconds between back-to-back ad claims
+AD_MAX_PER_DAY  = 10         # max ad claims per day per user
 AD_SMARTLINK    = os.getenv('AD_SMARTLINK', 'https://link.stonksmonkey.com/BfRJgT')
 RESULTS_DIR     = 'results'
-DAILY_BONUS     = 2          # free credits every 24h
+DAILY_BONUS     = 3          # free credits every 24h
+BOT_USERNAME    = 'Tastingofthe_bot'
+REFERRAL_CREDITS_WEBAPP = 20  # credits shown in mini app per referral
 SUBTITLE_COST   = 3          # credits to add subtitles
 VIDEO_COST      = 10         # credits to enhance video
 IMAGE_COST      = 5          # credits to enhance image
@@ -262,9 +266,52 @@ def api_ad_complete():
     if elapsed < AD_WATCH_SECS:
         remaining = int(AD_WATCH_SECS - elapsed)
         return jsonify({'ok': False, 'error': f'⏳ Abhi {remaining}s aur ruko!'}), 400
+    # ── Abuse prevention: cooldown + daily limit ──
+    with _users_lock:
+        users = _load_users()
+        uid = str(user_id)
+        udata = users.get(uid, {})
+        last_claim = udata.get('last_ad_claim', 0)
+        if time.time() - last_claim < AD_COOLDOWN_SECS:
+            rem = int(AD_COOLDOWN_SECS - (time.time() - last_claim))
+            return jsonify({'ok': False, 'error': f'⏳ {rem}s baad try karo — ek ad ke baad wait karo!'}), 400
+        day_key = str(int(time.time() / 86400))
+        if udata.get('ad_day_key') == day_key:
+            if udata.get('ad_count_today', 0) >= AD_MAX_PER_DAY:
+                return jsonify({'ok': False, 'error': f'❌ Aaj ke {AD_MAX_PER_DAY} ads limit ho gayi! Kal try karo.'}), 400
+            udata['ad_count_today'] = udata.get('ad_count_today', 0) + 1
+        else:
+            udata['ad_day_key'] = day_key
+            udata['ad_count_today'] = 1
+        udata['last_ad_claim'] = time.time()
+        udata['credits'] = udata.get('credits', 0) + CREDITS_PER_AD
+        if uid not in users:
+            users[uid] = {}
+        users[uid] = udata
+        _save_users(users)
+        new_balance = udata['credits']
     del _ad_tokens[token]
-    new_balance = _add_credits(user_id, CREDITS_PER_AD)
     return jsonify({'ok': True, 'credits_added': CREDITS_PER_AD, 'total_credits': new_balance})
+
+
+@app.route('/api/referral-info')
+def api_referral_info():
+    raw = request.args.get('init_data', '')
+    params = dict(urllib.parse.parse_qsl(raw))
+    try:
+        user = json.loads(params.get('user', '{}'))
+        user_id = user.get('id')
+    except Exception:
+        user_id = None
+    if not user_id:
+        return jsonify({'ok': False, 'error': 'Not identified'}), 400
+    ref_link = f'https://t.me/{BOT_USERNAME}?start=ref_{user_id}'
+    with _users_lock:
+        users = _load_users()
+        ref_count = users.get(str(user_id), {}).get('referral_count', 0)
+    return jsonify({'ok': True, 'referral_link': ref_link,
+                    'referral_count': ref_count,
+                    'credits_per_referral': REFERRAL_CREDITS_WEBAPP})
 
 @app.route('/api/daily-bonus', methods=['POST'])
 def api_daily_bonus():

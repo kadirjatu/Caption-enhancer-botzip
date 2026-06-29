@@ -178,8 +178,16 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       ✅ <b style="color:var(--text)">1GB+ videos</b> seedha upload karo<br>
       ✅ Telegram ka <b style="color:var(--text)">20MB limit bypass</b><br>
       ✅ <b style="color:var(--text)">Real-time progress</b> + ETA dikhai deta hai<br>
-      ✅ Processing ho rahi hai...
+      🎁 Daily login pe <b style="color:#f39c12">+3 free Credits</b> milte hain
     </div>
+  </div>
+  <div class="card" id="referral-card" style="border-color:#f39c1230;display:none">
+    <div class="card-title">🎁 Dosto ko Invite karo — Credits Kamao!</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:4px">Har dost ke join karne par <b style="color:#f39c12">+20 Credits</b> milenge!</div>
+    <div style="font-size:13px;margin-top:10px;color:var(--text)">👥 Tumhare Referrals: <b id="ref-count" style="color:#f39c12">0</b></div>
+    <div style="font-size:12px;color:var(--sub);margin-top:8px;margin-bottom:4px">Tera referral link:</div>
+    <div id="ref-link-box" style="background:var(--card2);border-radius:8px;padding:10px;font-size:11px;word-break:break-all;color:var(--accent);border:1px solid #ffffff10;line-height:1.5">⏳ Loading...</div>
+    <button class="btn" style="margin-top:10px;font-size:13px;padding:10px" onclick="copyRefLink()">📋 Link Copy Karo</button>
   </div>
 </div>
 
@@ -342,7 +350,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="job-bar"><div class="job-fill" id="ei-fill"></div></div>
       <div class="job-pct" id="ei-pct">0%</div>
       <div class="job-done" id="ei-done" style="display:none"></div>
-      <button class="btn-download" id="ei-download" onclick="downloadResult('ei')">⬇️ Mini App se Download Karo</button>
+      <img id="ei-preview" src="" alt="Enhanced Preview" style="width:100%;border-radius:12px;margin-top:10px;display:none;border:1px solid #ffffff15"/>
+      <button class="btn-download" id="ei-download" onclick="downloadResult('ei')">⬇️ Enhanced Image Download Karo</button>
     </div>
 
     <button class="btn" id="ei-btn" style="background:linear-gradient(135deg,var(--accent),var(--accent2))" onclick="submitEnhanceImage()">✨ Enhance Karo</button>
@@ -415,6 +424,30 @@ async function loadCredits(){
   }catch(e){ document.getElementById('credit-display').textContent='--'; }
 }
 loadCredits();
+
+// ── Referral Info ──
+async function loadReferralInfo(){
+  if(!user) return;
+  try{
+    const res = await fetch('/api/referral-info?init_data='+encodeURIComponent(initData));
+    const d   = await res.json();
+    if(d.ok){
+      document.getElementById('ref-link-box').textContent = d.referral_link;
+      document.getElementById('ref-count').textContent    = d.referral_count;
+      state.refLink = d.referral_link;
+      document.getElementById('referral-card').style.display = '';
+    }
+  }catch(e){}
+}
+function copyRefLink(){
+  if(!state.refLink){ toast('⏳ Link load ho raha hai...'); return; }
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(state.refLink).then(()=>toast('✅ Referral link copy ho gaya! Dosto ko bhejo 🎉',3000));
+  } else {
+    tg.showAlert('Tera referral link:\n'+state.refLink);
+  }
+}
+loadReferralInfo();
 
 // ── Daily Bonus (called on every app open) ──
 async function claimDailyBonus(){
@@ -648,10 +681,14 @@ function startPolling(jobId, prefix){
           stepEl.textContent='✅ Complete!';
           doneEl.className='job-done success';
           doneEl.textContent='✅ Done! Neeche download karo 👇';
-          // Show download button if result is available from mini app
           if(d.result_url && dlBtn){
             state.jobUrls[prefix] = d.result_url;
             dlBtn.classList.add('show');
+            // Image enhance: show thumbnail preview
+            if(prefix === 'ei'){
+              const prev = document.getElementById('ei-preview');
+              if(prev){ prev.src = d.result_url; prev.style.display = 'block'; }
+            }
           }
         }
         doneEl.style.display='block';
