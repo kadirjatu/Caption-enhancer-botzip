@@ -1031,7 +1031,7 @@ def generate_ass_styled(segments, style_key="netflix", words_data=None, font_nam
         eff_font = font_name if font_name else p['font']
     eff_color = color if color else p['color']
     header = (
-        "[Script Info]\nScriptType: v4.00+\nPlayResX: 384\nPlayResY: 288\nWrapStyle: 0\n\n"
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: 384\nPlayResY: 288\nScaledBorderAndShadow: yes\nWrapStyle: 0\n\n"
         "[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
         f"Style: Default,{eff_font},{p['size']},{eff_color},&H000000FF,{p['outline_color']},&H64000000,{p['bold']},0,0,0,100,100,{p['spacing']},0,1,{p['outline']},{p['shadow']},{p['alignment']},10,10,{p['marginv']},1\n"
@@ -1257,16 +1257,36 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             task="transcribe",
             word_timestamps=need_word_ts,
             language=language if language else None,
+            vad_filter=need_word_ts,  # VAD filter only for word-ts modes to cut "00" hallucinations
         )
         # Convert faster-whisper output to dict format (same as openai-whisper)
+        import re as _re
+        # Whisper word-timestamp mode sometimes injects bare "00"/"000" timestamp tokens into text.
+        # Only strip those exact zero-only tokens — never strip real numbers like "2", "10", "2024".
+        _zero_artifact = _re.compile(r'\b0{2,3}\b')
+
+        def _clean_whisper_text(t):
+            """Remove "00"/"000" Whisper artifacts; collapse extra spaces."""
+            return ' '.join(_zero_artifact.sub('', t).split())
+
         segments_list = []
         for i, seg in enumerate(fw_segments):
-            seg_dict = {"id": i, "start": seg.start, "end": seg.end, "text": seg.text}
+            raw_text = seg.text
+            if need_word_ts:
+                raw_text = _clean_whisper_text(raw_text)
+            seg_dict = {"id": i, "start": seg.start, "end": seg.end, "text": raw_text}
             if need_word_ts and seg.words:
-                seg_dict["words"] = [{"word": w.word, "start": w.start, "end": w.end} for w in seg.words]
+                # Also clean words_data so Shorts karaoke doesn't reintroduce "00" tokens
+                clean_words = [
+                    {"word": w.word, "start": w.start, "end": w.end}
+                    for w in seg.words
+                    if _zero_artifact.sub('', w.word).strip()  # skip pure artifact tokens
+                ]
+                seg_dict["words"] = clean_words
             else:
                 seg_dict["words"] = []
-            segments_list.append(seg_dict)
+            if raw_text:  # skip segments that became empty after cleanup
+                segments_list.append(seg_dict)
         result = {"segments": segments_list}
 
         if not result.get("segments"):
@@ -1285,6 +1305,11 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             mode_label = TRANSLATE_MODES.get(translate_mode, translate_mode)
             bot.edit_message_text(f"🌐 Gemini translate kar raha hai ({mode_label})... 70%", chat_id, status_msg.message_id)
             corrected_segments = gemini_translate_segments(corrected_segments, translate_mode, lang_label)
+
+        # Hinglish: Devanagari → Roman transliteration
+        if lang_label == "🔀 Hinglish":
+            bot.edit_message_text("🔤 Hinglish transliteration ho rahi hai... 75%", chat_id, status_msg.message_id)
+            corrected_segments = gemini_transliterate_hinglish(corrected_segments)
 
         # Emoji intelligence step (only for emotional content)
         bot.edit_message_text("😊 Gemini emotions detect kar raha hai... 80%", chat_id, status_msg.message_id)
