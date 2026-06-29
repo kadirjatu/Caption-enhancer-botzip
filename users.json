@@ -1,24 +1,8 @@
 {
   "6038098264": {
-    "credits": 9,
+    "credits": 4,
     "last_bonus": 1782725309.4855027,
     "history": [
-      {
-        "job_id": "0e9c83cf-3b3e-449b-a7b4-80a914bb6c5f",
-        "type": "image",
-        "desc": "4x",
-        "cost": 5,
-        "status": "error",
-        "created_at": 1782666765
-      },
-      {
-        "job_id": "a3821522-a302-497a-9fa2-e0efbe2b5170",
-        "type": "image",
-        "desc": "4x",
-        "cost": 5,
-        "status": "done",
-        "created_at": 1782709910
-      },
       {
         "job_id": "cad25367-6d51-425c-b379-6e1ae80bc695",
         "type": "image",
@@ -26,8 +10,27 @@
         "cost": 5,
         "status": "done",
         "created_at": 1782725486
+      },
+      {
+        "job_id": "cd99d29a-4bff-4f16-af01-b028db88a9b4",
+        "type": "image",
+        "desc": "4x",
+        "cost": 5,
+        "status": "done",
+        "created_at": 1782726038
+      },
+      {
+        "job_id": "146d22fa-3d63-4c01-8d40-340d394af252",
+        "type": "subtitle",
+        "desc": "netflix • Hinglish",
+        "cost": 3,
+        "status": "error",
+        "created_at": 1782726249
       }
     ],
-    "registered": true
+    "registered": true,
+    "ad_day_key": "20633",
+    "ad_count_today": 1,
+    "last_ad_claim": 1782726116.0455058
   }
 }

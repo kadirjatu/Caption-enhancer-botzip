@@ -781,15 +781,20 @@ function showMoreActions(prefix, panel){
   const wrap = document.createElement('div');
   wrap.id = prefix+'-more-actions';
   wrap.style.cssText = 'margin-top:14px;display:flex;flex-direction:column;gap:8px';
-  wrap.innerHTML =
-    '<div style="font-size:12px;font-weight:700;color:var(--sub);text-align:center;letter-spacing:.5px;margin-bottom:2px">— Aur kya karna hai? —</div>' +
-    (_MORE[prefix]||[]).map(a=>
-      `<button onclick="showPage('${a.page}')"
-        style="background:var(--card);border:1.5px solid var(--border);color:var(--fg);
-               padding:11px 14px;border-radius:12px;font-size:13px;font-weight:600;
-               cursor:pointer;text-align:left;transition:opacity .15s"
-        onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${a.label}</button>`
-    ).join('');
+
+  const lbl = document.createElement('div');
+  lbl.style.cssText = 'font-size:12px;font-weight:700;color:var(--sub);text-align:center;letter-spacing:.5px;margin-bottom:2px';
+  lbl.textContent = '— Aur kya karna hai? —';
+  wrap.appendChild(lbl);
+
+  (_MORE[prefix]||[]).forEach(function(a){
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:var(--card);border:1.5px solid var(--border);color:var(--fg);padding:11px 14px;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;text-align:left;width:100%;display:block';
+    btn.textContent = a.label;
+    btn.addEventListener('click', function(){ showPage(a.page); });
+    wrap.appendChild(btn);
+  });
+
   panel.appendChild(wrap);
 }
 

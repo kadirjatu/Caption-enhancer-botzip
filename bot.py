@@ -1208,6 +1208,8 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
         bot.edit_message_text(f"🧠 Faster-Whisper ({model_name}) speech-to-text... 45%\n⏳ 1-4 min lag sakte hain", chat_id, status_msg.message_id)
         fw_model = WhisperModel(model_name, device="cpu", compute_type="int8")
         need_word_ts = style_key in ("shorts", "reels", "gaming")
+        # 'hinglish' is not a Whisper language code — map to 'hi' for transcription
+        _whisper_lang = {'hinglish': 'hi'}.get(language, language) if language else None
         fw_segments, _info = fw_model.transcribe(
             audio_path,
             beam_size=5,
@@ -1216,7 +1218,7 @@ def process_video_subtitles(bot, message, file_id, file_name, language=None, lan
             condition_on_previous_text=False,
             task="transcribe",
             word_timestamps=need_word_ts,
-            language=language if language else None,
+            language=_whisper_lang,
             vad_filter=need_word_ts,  # VAD filter only for word-ts modes to cut "00" hallucinations
         )
         # Convert faster-whisper output to dict format (same as openai-whisper)

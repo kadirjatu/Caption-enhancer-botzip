@@ -314,11 +314,13 @@ def api_subtitle():
             from faster_whisper import WhisperModel
             fw_model = WhisperModel('small', device='cpu', compute_type='int8')
             need_word_ts = style_key in ('shorts', 'reels', 'gaming')
+            # 'hinglish' is not a Whisper language code — map to 'hi' for transcription
+            _whisper_lang = {'hinglish': 'hi'}.get(language, language) if language else None
             fw_segs, _ = fw_model.transcribe(
                 audio_path, beam_size=5, best_of=5, temperature=0,
                 condition_on_previous_text=False, task='transcribe',
                 word_timestamps=need_word_ts,
-                language=language if language else None,
+                language=_whisper_lang,
             )
             segments = []
             for i, seg in enumerate(fw_segs):
