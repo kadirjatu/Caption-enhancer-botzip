@@ -117,51 +117,11 @@ ENHANCE_CREDIT_COST = 1   # 1 credit per image/video enhance
 AD_COOLDOWN_SECONDS = 300  # 5 minutes
 ADSTERRA_LINK = os.getenv("ADSTERRA_LINK", "https://www.effectivecpmnetwork.com/z0kuixztez?key=669f4fed4da4bb1e1233d5254a9b8887")
 
-user_credits = {}       # {user_id: int}
 ad_cooldowns = {}       # {user_id: float timestamp}
-registered_users = set()  # set of user_ids already given signup credits
 user_referrers = {}     # {new_user_id: referrer_user_id}
 
-def get_credits(user_id):
-    return user_credits.get(str(user_id), 0)
-
-def add_credits(user_id, amount):
-    uid = str(user_id)
-    user_credits[uid] = user_credits.get(uid, 0) + amount
-
-def deduct_credits(user_id, amount):
-    uid = str(user_id)
-    user_credits[uid] = max(0, user_credits.get(uid, 0) - amount)
-
-def _increment_referral_count(referrer_id):
-    """Persist referral count to users.json so mini app can show it."""
-    try:
-        users_file = 'users.json'
-        rid = str(referrer_id)
-        try:
-            with open(users_file, 'r', encoding='utf-8') as f:
-                users = json.load(f)
-        except Exception:
-            users = {}
-        if rid not in users:
-            users[rid] = {}
-        users[rid]['referral_count'] = users[rid].get('referral_count', 0) + 1
-        with open(users_file, 'w', encoding='utf-8') as f:
-            json.dump(users, f, ensure_ascii=False)
-    except Exception as e:
-        logging.error(f"Referral count persist error: {e}")
-
-def register_user_credits(user_id, referrer_id=None):
-    uid = str(user_id)
-    if uid not in registered_users:
-        registered_users.add(uid)
-        add_credits(uid, SIGNUP_CREDITS)
-        if referrer_id and str(referrer_id) != uid:
-            add_credits(str(referrer_id), REFERRAL_CREDITS)
-            user_referrers[uid] = str(referrer_id)
-            _increment_referral_count(referrer_id)
-        return True
-    return False
+# ── Credit system — all backed by users.json via shared credits.py ──────────
+from credits import get_credits, add_credits, deduct_credits, register_user_credits
 
 def get_main_keyboard(user_id):
     markup = InlineKeyboardMarkup()

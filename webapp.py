@@ -10,114 +10,25 @@ _fns = {}
 # job_id -> {step, progress, eta_sec, done, error, started_at, result_file}
 _jobs = {}
 
-# ─── Credit System ────────────────────────────────────────
-USERS_FILE      = 'users.json'
+# ─── Credit System — shared with bot.py via credits.py ────────────────────
+from credits import (
+    USERS_FILE, DAILY_BONUS, _users_lock,
+    _load_users, _save_users,
+    _get_credits, _add_credits, _deduct_credits, _check_credits,
+    _add_history, _update_history_status, _check_and_give_daily_bonus,
+)
 CREDITS_PER_AD  = 3          # credits per ad watched
 AD_WATCH_SECS   = 30         # minimum seconds user must watch
 AD_COOLDOWN_SECS = 120       # seconds between back-to-back ad claims
 AD_MAX_PER_DAY  = 10         # max ad claims per day per user
 AD_SMARTLINK    = os.getenv('AD_SMARTLINK', 'https://link.stonksmonkey.com/BfRJgT')
 RESULTS_DIR     = 'results'
-DAILY_BONUS     = 3          # free credits every 24h
 BOT_USERNAME    = 'Tastingofthe_bot'
 REFERRAL_CREDITS_WEBAPP = 20  # credits shown in mini app per referral
 SUBTITLE_COST   = 3          # credits to add subtitles
 VIDEO_COST      = 10         # credits to enhance video
 IMAGE_COST      = 5          # credits to enhance image
 _ad_tokens      = {}         # token -> {user_id, started_at}
-_users_lock     = threading.Lock()
-
-def _load_users():
-    try:
-        with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-def _save_users(data):
-    with open(USERS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-def _get_credits(user_id):
-    with _users_lock:
-        return _load_users().get(str(user_id), {}).get('credits', 0)
-
-def _add_credits(user_id, amount):
-    with _users_lock:
-        users = _load_users()
-        uid = str(user_id)
-        if uid not in users:
-            users[uid] = {'credits': 0}
-        users[uid]['credits'] = users[uid].get('credits', 0) + amount
-        _save_users(users)
-        return users[uid]['credits']
-
-def _deduct_credits(user_id, amount):
-    """Deducts credits. Raises ValueError if balance insufficient."""
-    with _users_lock:
-        users = _load_users()
-        uid = str(user_id)
-        if uid not in users:
-            users[uid] = {'credits': 0}
-        current = users[uid].get('credits', 0)
-        if current < amount:
-            raise ValueError(f'Kam credits hain! Tumhare paas {current} hain, {amount} chahiye.')
-        users[uid]['credits'] = current - amount
-        _save_users(users)
-        return users[uid]['credits']
-
-def _check_credits(user_id, amount):
-    """Only checks if user has enough credits. Raises ValueError if not. Does NOT deduct."""
-    with _users_lock:
-        users = _load_users()
-        uid = str(user_id)
-        current = users.get(uid, {}).get('credits', 0)
-        if current < amount:
-            raise ValueError(f'Kam credits hain! Tumhare paas {current} hain, {amount} chahiye.')
-
-def _add_history(user_id, job_id, task_type, cost, desc=''):
-    """Adds a task to user history (max 3 entries, oldest removed)."""
-    with _users_lock:
-        users = _load_users()
-        uid = str(user_id)
-        if uid not in users:
-            users[uid] = {'credits': 0}
-        history = users[uid].get('history', [])
-        history.append({'job_id': job_id, 'type': task_type, 'desc': desc,
-                        'cost': cost, 'status': 'processing',
-                        'created_at': int(time.time())})
-        users[uid]['history'] = history[-3:]   # keep last 3 only
-        _save_users(users)
-
-def _update_history_status(user_id, job_id, status):
-    with _users_lock:
-        users = _load_users()
-        uid = str(user_id)
-        if uid in users:
-            for item in users[uid].get('history', []):
-                if item.get('job_id') == job_id:
-                    item['status'] = status
-                    break
-            _save_users(users)
-
-def _check_and_give_daily_bonus(user_id):
-    """Returns {given, amount, credits, next_in} dict."""
-    with _users_lock:
-        users = _load_users()
-        uid = str(user_id)
-        if uid not in users:
-            users[uid] = {'credits': 0}
-        now = time.time()
-        last_bonus = users[uid].get('last_bonus', 0)
-        if now - last_bonus >= 24 * 3600:
-            users[uid]['credits'] = users[uid].get('credits', 0) + DAILY_BONUS
-            users[uid]['last_bonus'] = now
-            _save_users(users)
-            return {'given': True, 'amount': DAILY_BONUS,
-                    'credits': users[uid]['credits'], 'next_in': 24 * 3600}
-        next_in = int(24 * 3600 - (now - last_bonus))
-        return {'given': False, 'amount': 0,
-                'credits': users[uid].get('credits', 0), 'next_in': next_in}
 
 def _parse_user_from_form(req):
     try:
