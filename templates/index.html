@@ -404,7 +404,10 @@ const state = {
   translate:'original', font:'Noto Sans Devanagari',
   color:'&H00FFFFFF', quality:'1080p30', emode:'4x',
   // ad system
-  adToken: null, adTimerInterval: null, adSecsLeft: 30, adUrl: '#', jobUrls: {}
+  adToken: null, adTimerInterval: null, adSecsLeft: 30, adUrl: '#', jobUrls: {},
+  adCooldownEnds: 0, adCooldownInterval: null,
+  // active poll intervals per prefix — ensures only one polling loop runs per job type
+  pollIntervals: {}
 };
 
 // ── Credits System ──
@@ -510,16 +513,52 @@ async function loadHistory(){
 // ── Ad Modal ──
 function openAdModal(){
   document.getElementById('ad-modal').classList.add('show');
-  document.getElementById('btn-watch-ad').style.display   = '';
-  document.getElementById('btn-claim-credits').style.display = 'none';
-  document.getElementById('ad-timer-wrap').style.display  = 'none';
-  document.getElementById('ad-status-msg').textContent    = '';
   clearInterval(state.adTimerInterval);
+  clearInterval(state.adCooldownInterval);
   state.adToken = null;
+  const rem = Math.ceil((state.adCooldownEnds - Date.now()) / 1000);
+  if(rem > 0){
+    // Still in cooldown — show countdown, hide watch button
+    document.getElementById('btn-watch-ad').style.display      = 'none';
+    document.getElementById('btn-claim-credits').style.display = 'none';
+    document.getElementById('ad-timer-wrap').style.display     = 'block';
+    document.getElementById('ad-timer').textContent            = fmtEta(rem);
+    document.getElementById('ad-status-msg').textContent       = '⏳ Next ad ke liye thoda wait karo...';
+    startAdCooldownCountdown();
+  } else {
+    document.getElementById('btn-watch-ad').style.display      = '';
+    document.getElementById('btn-watch-ad').disabled           = false;
+    document.getElementById('btn-watch-ad').textContent        = '📺 Ad Kholo & Kamao';
+    document.getElementById('btn-claim-credits').style.display = 'none';
+    document.getElementById('ad-timer-wrap').style.display     = 'none';
+    document.getElementById('ad-status-msg').textContent       = '';
+  }
 }
 function closeAdModal(){
   document.getElementById('ad-modal').classList.remove('show');
   clearInterval(state.adTimerInterval);
+  clearInterval(state.adCooldownInterval);
+}
+
+function startAdCooldownCountdown(){
+  clearInterval(state.adCooldownInterval);
+  state.adCooldownInterval = setInterval(()=>{
+    const rem = Math.ceil((state.adCooldownEnds - Date.now()) / 1000);
+    if(rem <= 0){
+      clearInterval(state.adCooldownInterval);
+      // Cooldown over — restore watch button (only if modal is still open)
+      if(document.getElementById('ad-modal').classList.contains('show')){
+        document.getElementById('ad-timer-wrap').style.display = 'none';
+        document.getElementById('ad-status-msg').textContent   = '✅ Ab ad dekh sakte ho!';
+        document.getElementById('btn-watch-ad').style.display  = '';
+        document.getElementById('btn-watch-ad').disabled       = false;
+        document.getElementById('btn-watch-ad').textContent    = '📺 Ad Kholo & Kamao';
+      }
+    } else {
+      document.getElementById('ad-timer').textContent    = fmtEta(rem);
+      document.getElementById('ad-timer-wrap').style.display = 'block';
+    }
+  }, 1000);
 }
 
 async function startWatchingAd(){
@@ -561,6 +600,8 @@ async function claimCredits(){
     if(d.ok){
       updateCreditDisplay(d.total_credits);
       toast(`🎉 +${d.credits_added} Credits mile! Total: ${d.total_credits} 💰`, 4000);
+      // Start 2-min cooldown countdown
+      state.adCooldownEnds = Date.now() + 120 * 1000;
       closeAdModal();
     } else {
       toast('❌ '+d.error, 4000);
@@ -656,7 +697,17 @@ function startPolling(jobId, prefix){
   doneEl.style.display='none';
   if(dlBtn) dlBtn.classList.remove('show');
 
+  // Cancel any existing polling loop for this prefix (prevents double-submit race)
+  clearInterval(state.pollIntervals[prefix]);
+  // Remove any leftover "do more" section from previous job
+  const oldMore = document.getElementById(prefix+'-more-actions');
+  if(oldMore) oldMore.remove();
+
+  let pollCount = 0;
   const interval=setInterval(async()=>{
+    // Stale-guard: if another poll loop started for this prefix, stop this one
+    if(state.pollIntervals[prefix] !== interval){ clearInterval(interval); return; }
+
     try{
       const res=await fetch('/api/status/'+jobId);
       if(!res.ok){clearInterval(interval);return;}
@@ -668,11 +719,16 @@ function startPolling(jobId, prefix){
       pctEl.textContent  = (d.progress||0)+'%';
       etaEl.textContent  = 'ETA: '+fmtEta(d.eta_sec||0);
 
+      // Refresh credits every ~20s while job is running
+      pollCount++;
+      if(pollCount % 10 === 0) loadCredits();
+
       if(d.done){
         clearInterval(interval);
         fillEl.style.width='100%';
         pctEl.textContent='100%';
         etaEl.textContent='Done!';
+        loadCredits(); // Sync credits immediately on completion
         if(d.error){
           stepEl.textContent='❌ Error occurred';
           doneEl.className='job-done error';
@@ -692,9 +748,49 @@ function startPolling(jobId, prefix){
           }
         }
         doneEl.style.display='block';
+        // Show "do more" quick-action buttons
+        showMoreActions(prefix, panel);
       }
     }catch(e){/* ignore poll errors */}
   },2000);
+  state.pollIntervals[prefix] = interval; // track active interval for this prefix
+}
+
+// ── "Do More" — quick actions after job done / failed ──
+const _MORE = {
+  sub: [
+    {label:'📝 Aur Caption Banao',     page:'subtitle'},
+    {label:'⚡ Video Enhance Karo',    page:'enhance-video'},
+    {label:'✨ Image Enhance Karo',    page:'enhance-image'},
+  ],
+  ev: [
+    {label:'⚡ Aur Video Enhance Karo', page:'enhance-video'},
+    {label:'📝 Caption Add Karo',       page:'subtitle'},
+    {label:'✨ Image Enhance Karo',     page:'enhance-image'},
+  ],
+  ei: [
+    {label:'✨ Aur Image Enhance Karo', page:'enhance-image'},
+    {label:'📝 Caption Add Karo',       page:'subtitle'},
+    {label:'⚡ Video Enhance Karo',     page:'enhance-video'},
+  ],
+};
+function showMoreActions(prefix, panel){
+  // Idempotent — remove existing before appending
+  const existing = document.getElementById(prefix+'-more-actions');
+  if(existing) existing.remove();
+  const wrap = document.createElement('div');
+  wrap.id = prefix+'-more-actions';
+  wrap.style.cssText = 'margin-top:14px;display:flex;flex-direction:column;gap:8px';
+  wrap.innerHTML =
+    '<div style="font-size:12px;font-weight:700;color:var(--sub);text-align:center;letter-spacing:.5px;margin-bottom:2px">— Aur kya karna hai? —</div>' +
+    (_MORE[prefix]||[]).map(a=>
+      `<button onclick="showPage('${a.page}')"
+        style="background:var(--card);border:1.5px solid var(--border);color:var(--fg);
+               padding:11px 14px;border-radius:12px;font-size:13px;font-weight:600;
+               cursor:pointer;text-align:left;transition:opacity .15s"
+        onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${a.label}</button>`
+    ).join('');
+  panel.appendChild(wrap);
 }
 
 // ── XHR upload with progress ──
