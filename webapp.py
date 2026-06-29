@@ -350,21 +350,33 @@ def api_subtitle():
                 _finish_job(jid, '❌ Koi speech nahi mili')
                 return
 
-            # Step 3: Gemini correct
+            # Step 3: Gemini correct (optional — skip if quota exceeded or API unavailable)
             _update_job(jid, '🤖 Gemini text correct kar raha hai...', 60, 60)
             _bot.send_message(chat_id, '🤖 Gemini text correct kar raha hai... 60%')
-            segments = _fns['gemini_correct'](segments, lang_label)
+            try:
+                segments = _fns['gemini_correct'](segments, lang_label)
+            except Exception as gemini_err:
+                logging.warning(f'Gemini correction skipped (API unavailable): {gemini_err}')
+                _bot.send_message(chat_id, '⚠️ Gemini correction skipped (API quota/unavailable), continuing with original text.')
 
-            # Step 4: Translate
+            # Step 4: Translate (optional — skip if quota exceeded or API unavailable)
             if translate != 'original':
                 _update_job(jid, '🌐 Gemini translate kar raha hai...', 70, 45)
                 _bot.send_message(chat_id, '🌐 Gemini translate kar raha hai... 70%')
-                segments = _fns['gemini_translate'](segments, translate, lang_label)
+                try:
+                    segments = _fns['gemini_translate'](segments, translate, lang_label)
+                except Exception as gemini_err:
+                    logging.warning(f'Gemini translation skipped (API unavailable): {gemini_err}')
+                    _bot.send_message(chat_id, '⚠️ Gemini translation skipped (API quota/unavailable), continuing in original language.')
 
-            # Step 5: Emoji
+            # Step 5: Emoji (optional — skip if quota exceeded or API unavailable)
             _update_job(jid, '😊 Emotions detect ho rahi hain...', 75, 35)
             _bot.send_message(chat_id, '😊 Emotions detect ho rahi hain... 75%')
-            segments = _fns['gemini_emojis'](segments)
+            try:
+                segments = _fns['gemini_emojis'](segments)
+            except Exception as gemini_err:
+                logging.warning(f'Gemini emoji detection skipped (API unavailable): {gemini_err}')
+                _bot.send_message(chat_id, '⚠️ Gemini emoji detection skipped (API quota/unavailable), continuing without emojis.')
 
             # Step 6: Generate ASS + Burn
             words_data = None
