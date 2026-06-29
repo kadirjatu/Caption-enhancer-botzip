@@ -1,16 +1,8 @@
 {
   "6038098264": {
-    "credits": 4,
+    "credits": 1,
     "last_bonus": 1782725309.4855027,
     "history": [
-      {
-        "job_id": "cad25367-6d51-425c-b379-6e1ae80bc695",
-        "type": "image",
-        "desc": "4x",
-        "cost": 5,
-        "status": "done",
-        "created_at": 1782725486
-      },
       {
         "job_id": "cd99d29a-4bff-4f16-af01-b028db88a9b4",
         "type": "image",
@@ -26,6 +18,14 @@
         "cost": 3,
         "status": "error",
         "created_at": 1782726249
+      },
+      {
+        "job_id": "0025d23a-c871-4ac2-bf24-9cb8b00b7c03",
+        "type": "subtitle",
+        "desc": "netflix • Hinglish",
+        "cost": 3,
+        "status": "done",
+        "created_at": 1782726886
       }
     ],
     "registered": true,

@@ -23,6 +23,19 @@ AD_COOLDOWN_SECS = 120       # seconds between back-to-back ad claims
 AD_MAX_PER_DAY  = 10         # max ad claims per day per user
 AD_SMARTLINK    = os.getenv('AD_SMARTLINK', 'https://link.stonksmonkey.com/BfRJgT')
 RESULTS_DIR     = 'results'
+MAX_RESULTS     = 2          # keep only the 2 newest result files
+
+def _cleanup_results():
+    """Delete oldest result files, keeping only MAX_RESULTS newest."""
+    try:
+        files = [os.path.join(RESULTS_DIR, f) for f in os.listdir(RESULTS_DIR)
+                 if os.path.isfile(os.path.join(RESULTS_DIR, f))]
+        if len(files) > MAX_RESULTS:
+            files.sort(key=os.path.getmtime)
+            for old in files[:len(files) - MAX_RESULTS]:
+                os.remove(old)
+    except Exception as e:
+        logging.warning(f'Results cleanup error: {e}')
 BOT_USERNAME    = 'Tastingofthe_bot'
 REFERRAL_CREDITS_WEBAPP = 20  # credits shown in mini app per referral
 SUBTITLE_COST   = 3          # credits to add subtitles
@@ -80,6 +93,7 @@ def _finish_job(jid, error=None, output_path=None):
                 shutil.copy2(output_path, dest)
                 _jobs[jid]['result_file'] = dest
                 _jobs[jid]['result_ext'] = ext
+                _cleanup_results()  # keep only MAX_RESULTS newest files
             except Exception as e:
                 logging.error(f'Result copy error: {e}')
         # Update history status
